@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="56" y1="52" x2="456" y2="460" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0F172A"/>
+      <stop offset="1" stop-color="#0B5D7A"/>
+    </linearGradient>
+    <linearGradient id="screen" x1="124" y1="112" x2="368" y2="352" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7DE3FF"/>
+      <stop offset="1" stop-color="#D8FAFF"/>
+    </linearGradient>
+    <filter id="shadow" x="46" y="42" width="420" height="428" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#020617" flood-opacity="0.34"/>
+    </filter>
+  </defs>
+  <rect x="32" y="32" width="448" height="448" rx="104" fill="url(#bg)"/>
+  <g filter="url(#shadow)">
+    <rect x="86" y="110" width="292" height="208" rx="42" fill="#E6FBFF" fill-opacity="0.16" stroke="#7DE3FF" stroke-width="8"/>
+    <rect x="122" y="144" width="220" height="140" rx="24" fill="url(#screen)"/>
+    <path d="M214 182.5C214 175.044 222.161 170.239 228.827 173.939L281.126 202.964C287.985 206.771 287.985 216.629 281.126 220.436L228.827 249.461C222.161 253.161 214 248.356 214 240.9V182.5Z" fill="#0F172A"/>
+  </g>
+  <rect x="396" y="168" width="42" height="176" rx="21" fill="#E6FBFF" fill-opacity="0.18" stroke="#9EE8FF" stroke-width="8"/>
+  <circle cx="417" cy="218" r="8" fill="#9EE8FF"/>
+  <circle cx="417" cy="256" r="8" fill="#9EE8FF"/>
+  <circle cx="417" cy="294" r="8" fill="#9EE8FF"/>
+  <path d="M110 118V168H132V140H160V118H110Z" fill="#F8FAFC"/>
+  <path d="M402 118H352V140H380V168H402V118Z" fill="#F8FAFC"/>
+  <path d="M110 394H160V372H132V344H110V394Z" fill="#F8FAFC"/>
+  <path d="M402 394V344H380V372H352V394H402Z" fill="#F8FAFC"/>
+</svg>
