@@ -45,9 +45,9 @@
   ]
   const BILIBILI_SIDE_NAV_SELECTOR = ".fixed-sidenav-storage"
   const BILIBILI_DOCK_GAP = 0
-  const MARGIN = 16
-  const MIN_WIDTH = 320
-  const ABSOLUTE_MIN_WIDTH = 240
+  const MARGIN = 1
+  const MIN_WIDTH = 480 
+  const ABSOLUTE_MIN_WIDTH = 480
   const MAX_VIEWPORT_RATIO = 0.82
   const PLAYER_Z_INDEX = 2147483646
   const DEFAULT_ASPECT_RATIO = 16 / 9
