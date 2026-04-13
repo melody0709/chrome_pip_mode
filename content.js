@@ -7,7 +7,6 @@
 
   const ACTIVE_CLASS = "copilot-floating-player-active"
   const BILIBILI_CLASS = "copilot-floating-player-bilibili"
-  const YOUTUBE_CLASS = "copilot-floating-player-youtube"
   const OVERLAY_ID = "copilot-floating-player-overlay"
   const OVERLAY_ACTIVE_CLASS = "copilot-floating-player-overlay-active"
   const STYLE_ID = "copilot-floating-player-style"
@@ -30,15 +29,7 @@
     ".bpx-player-control-wrap",
     ".bpx-player-ctrl-bottom",
     ".bpx-player-dialog-wrap",
-    ".bpx-player-toast-wrap",
-    ".ytp-chrome-bottom",
-    ".ytp-chrome-controls",
-    ".ytp-popup",
-    ".ytp-settings-menu",
-    ".ytp-progress-bar-container",
-    ".ytp-gradient-bottom",
-    ".ytp-cued-thumbnail-overlay",
-    ".ytp-paid-content-overlay"
+    ".bpx-player-toast-wrap"
   ].join(", ")
   const PLAYER_STYLE_PROPS = [
     "position",
@@ -85,10 +76,6 @@
 
     if (host.includes("bilibili.com")) {
       return createBilibiliController()
-    }
-
-    if (host.includes("youtube.com")) {
-      return createYouTubeController()
     }
 
     return null
@@ -157,84 +144,6 @@
     }
   }
 
-  function createYouTubeController() {
-    return {
-      id: "youtube",
-      getPlayer() {
-        if (location.pathname !== "/watch") {
-          return null
-        }
-
-        return document.querySelector("#player")
-      },
-      shouldFloat(player) {
-        if (!player || location.pathname !== "/watch") {
-          return false
-        }
-
-        const comments = document.querySelector("#comments")
-        const outer = document.querySelector("#player-container-outer")
-
-        if (!comments || !outer) {
-          return false
-        }
-
-        const outerRect = outer.getBoundingClientRect()
-        const commentsRect = comments.getBoundingClientRect()
-        const playerOutOfView = outerRect.bottom < Math.min(innerHeight * 0.18, 140)
-        const commentsReached = commentsRect.top < innerHeight * 0.9
-
-        return outerRect.width > 0 && outerRect.height > 0 && playerOutOfView && commentsReached
-      },
-      getDefaultGeometry(player) {
-        const ratio = getAspectRatio(player)
-        const maxWidth = getMaxWidthForViewport(ratio)
-        const minWidth = Math.min(360, maxWidth)
-        const width = clamp(Math.round(Math.min(460, innerWidth * 0.32)), minWidth, maxWidth)
-        const height = Math.round(width / ratio)
-
-        return {
-          left: innerWidth - MARGIN - width,
-          top: innerHeight - MARGIN - height,
-          width,
-          height
-        }
-      },
-      applyGeometry(player, geometry) {
-        const outer = document.querySelector("#player-container-outer")
-        const outerHeight = outer?.getBoundingClientRect().height || player.getBoundingClientRect().height
-
-        rememberStyles(player, PLAYER_STYLE_PROPS)
-        rememberStyles(outer, ["height"])
-        player.classList.add(ACTIVE_CLASS, YOUTUBE_CLASS)
-
-        if (outerHeight > 0 && outer) {
-          outer.style.height = `${Math.round(outerHeight)}px`
-        }
-
-        player.style.position = "fixed"
-        player.style.left = `${geometry.left}px`
-        player.style.top = `${geometry.top}px`
-        player.style.right = "auto"
-        player.style.bottom = "auto"
-        player.style.width = `${geometry.width}px`
-        player.style.height = `${geometry.height}px`
-        player.style.maxWidth = `${geometry.width}px`
-        player.style.maxHeight = `${geometry.height}px`
-        player.style.zIndex = String(PLAYER_Z_INDEX)
-      },
-      cleanup(player) {
-        const outer = document.querySelector("#player-container-outer")
-
-        player.classList.remove(ACTIVE_CLASS, YOUTUBE_CLASS)
-        restoreStyles(player)
-        restoreStyles(outer)
-        forgetStyles(player)
-        forgetStyles(outer)
-      }
-    }
-  }
-
   function createStorage(key) {
     if (globalThis.chrome?.storage?.local) {
       return {
@@ -295,22 +204,6 @@
       if (!(property in snapshot)) {
         snapshot[property] = element.style[property]
       }
-    }
-  }
-
-  function restoreStyles(element) {
-    if (!element) {
-      return
-    }
-
-    const snapshot = rememberedStyles.get(element)
-
-    if (!snapshot) {
-      return
-    }
-
-    for (const [property, value] of Object.entries(snapshot)) {
-      element.style[property] = value
     }
   }
 
@@ -1011,30 +904,6 @@
         height: 100% !important;
         max-width: none !important;
         max-height: none !important;
-      }
-
-      .${YOUTUBE_CLASS},
-      .${YOUTUBE_CLASS} #movie_player,
-      .${YOUTUBE_CLASS} .html5-video-player,
-      .${YOUTUBE_CLASS} .html5-video-container,
-      .${YOUTUBE_CLASS} video {
-        width: 100% !important;
-        height: 100% !important;
-        max-width: none !important;
-        max-height: none !important;
-      }
-
-      .${YOUTUBE_CLASS},
-      .${YOUTUBE_CLASS} #movie_player,
-      .${YOUTUBE_CLASS} .html5-video-player,
-      .${YOUTUBE_CLASS} .html5-video-container {
-        background: #000 !important;
-        overflow: hidden !important;
-      }
-
-      .${YOUTUBE_CLASS} video {
-        inset: 0 !important;
-        object-fit: contain;
       }
     `
 

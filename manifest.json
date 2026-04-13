@@ -1,22 +1,20 @@
 {
   "manifest_version": 3,
   "name": "Floating Video Resizer",
-  "description": "Adds four-corner resizing for Bilibili's floating player and auto floating mini-player behavior on YouTube watch pages.",
-  "version": "0.2.0",
+  "description": "Adds four-corner resizing and drag support for Bilibili's floating player.",
+  "version": "0.2.1",
   "icons": {
     "128": "assets/icon-128.png"
   },
   "permissions": ["storage"],
   "host_permissions": [
-    "https://www.bilibili.com/*",
-    "https://www.youtube.com/*"
+    "https://www.bilibili.com/*"
   ],
   "content_scripts": [
     {
       "matches": [
         "https://www.bilibili.com/video/*",
-        "https://www.bilibili.com/bangumi/play/*",
-        "https://www.youtube.com/*"
+        "https://www.bilibili.com/bangumi/play/*"
       ],
       "js": ["content.js"],
       "run_at": "document_idle"
