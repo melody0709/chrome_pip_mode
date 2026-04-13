@@ -13,6 +13,7 @@ This Chrome extension improves floating video behavior on Bilibili.
 - Four-corner resize handles placed outside the video frame so they do not sit on top of the picture.
 - Drag the floating player itself from any non-control area to move it.
 - The invisible strip above the floating player also works as a drag zone without covering the video.
+- When the browser window is resized, the floating player scales with the viewport while keeping its right and bottom offsets aligned.
 - Preserve the original aspect ratio while resizing.
 - Persist size and floating position with `chrome.storage.local`.
 - Double-click any corner handle to reset to the default Bilibili geometry.

@@ -12,7 +12,7 @@
   const STYLE_ID = "copilot-floating-player-style"
   const HANDLE_CLASS = "copilot-floating-player-handle"
   const STORAGE_PREFIX = "floatingVideoState:"
-  const STORAGE_SCHEMA_VERSION = 2
+  const STORAGE_SCHEMA_VERSION = 3
   const MOVE_ZONE_CLASS = "copilot-floating-player-move-zone"
   const MOVE_DRAG_THRESHOLD = 6
   const MOVE_EXCLUDE_SELECTOR = [
@@ -69,6 +69,7 @@
   let pendingMove = null
   let scheduled = false
   let suppressPlayerClickUntil = 0
+  let lastViewport = getViewportMetrics()
   const playerInteractionHandlers = new WeakMap()
 
   function getSiteController() {
@@ -401,28 +402,47 @@
     return DEFAULT_ASPECT_RATIO
   }
 
-  function getMaxWidthForViewport(ratio) {
+  function getViewportMetrics() {
+    return {
+      width: Math.max(1, globalThis.innerWidth || document.documentElement.clientWidth || 1),
+      height: Math.max(1, globalThis.innerHeight || document.documentElement.clientHeight || 1)
+    }
+  }
+
+  function viewportEquals(leftViewport, rightViewport) {
+    if (!leftViewport || !rightViewport) {
+      return false
+    }
+
+    return leftViewport.width === rightViewport.width && leftViewport.height === rightViewport.height
+  }
+
+  function getMaxWidthForViewport(ratio, viewport = getViewportMetrics()) {
     const maxWidth = Math.floor(
       Math.min(
-        innerWidth - MARGIN * 2,
-        (innerHeight - MARGIN * 2) * ratio,
-        innerWidth * MAX_VIEWPORT_RATIO
+        viewport.width - MARGIN * 2,
+        (viewport.height - MARGIN * 2) * ratio,
+        viewport.width * MAX_VIEWPORT_RATIO
       )
     )
 
     return Math.max(ABSOLUTE_MIN_WIDTH, maxWidth)
   }
 
-  function getMinWidthForViewport(ratio) {
-    return Math.min(MIN_WIDTH, getMaxWidthForViewport(ratio))
+  function getMinWidthForViewport(ratio, viewport = getViewportMetrics()) {
+    return Math.min(MIN_WIDTH, getMaxWidthForViewport(ratio, viewport))
   }
 
-  function clampGeometry(player, geometry) {
+  function clampGeometry(player, geometry, viewport = getViewportMetrics()) {
     const ratio = getAspectRatio(player)
-    const width = clamp(Math.round(geometry.width), getMinWidthForViewport(ratio), getMaxWidthForViewport(ratio))
+    const width = clamp(
+      Math.round(geometry.width),
+      getMinWidthForViewport(ratio, viewport),
+      getMaxWidthForViewport(ratio, viewport)
+    )
     const height = Math.round(width / ratio)
-    const maxLeft = Math.max(MARGIN, innerWidth - MARGIN - width)
-    const maxTop = Math.max(MARGIN, innerHeight - MARGIN - height)
+    const maxLeft = Math.max(MARGIN, viewport.width - MARGIN - width)
+    const maxTop = Math.max(MARGIN, viewport.height - MARGIN - height)
 
     return {
       left: clamp(Math.round(geometry.left), MARGIN, maxLeft),
@@ -432,12 +452,54 @@
     }
   }
 
-  function sanitizeSavedGeometry(player, value) {
+  function createResponsiveGeometrySnapshot(player, geometry, viewport = getViewportMetrics()) {
+    const nextGeometry = clampGeometry(player, geometry, viewport)
+
+    return {
+      version: STORAGE_SCHEMA_VERSION,
+      left: nextGeometry.left,
+      top: nextGeometry.top,
+      width: nextGeometry.width,
+      viewportWidth: viewport.width,
+      viewportHeight: viewport.height,
+      right: Math.max(MARGIN, viewport.width - nextGeometry.left - nextGeometry.width),
+      bottom: Math.max(MARGIN, viewport.height - nextGeometry.top - nextGeometry.height),
+      widthRatio: nextGeometry.width / viewport.width
+    }
+  }
+
+  function adaptGeometryToViewport(player, value, viewport = getViewportMetrics()) {
+    const left = Number(value.left)
+    const top = Number(value.top)
+    const width = Number(value.width)
+    const sourceViewportWidth = Number(value.viewportWidth)
+    const sourceViewportHeight = Number(value.viewportHeight)
+    const right = Number.isFinite(Number(value.right))
+      ? Number(value.right)
+      : sourceViewportWidth - left - width
+    const bottom = Number.isFinite(Number(value.bottom))
+      ? Number(value.bottom)
+      : sourceViewportHeight - top - Math.round(width / getAspectRatio(player))
+    const widthRatio = Number.isFinite(Number(value.widthRatio))
+      ? Number(value.widthRatio)
+      : sourceViewportWidth > 0
+        ? width / sourceViewportWidth
+        : 0
+    const nextWidth = widthRatio > 0 ? viewport.width * widthRatio : width
+
+    return clampGeometry(player, {
+      left: viewport.width - right - nextWidth,
+      top: viewport.height - bottom - Math.round(nextWidth / getAspectRatio(player)),
+      width: nextWidth
+    }, viewport)
+  }
+
+  function sanitizeSavedGeometry(player, value, viewport = getViewportMetrics()) {
     if (!value || typeof value !== "object") {
       return null
     }
 
-    if (value.version !== STORAGE_SCHEMA_VERSION) {
+    if (![2, STORAGE_SCHEMA_VERSION].includes(value.version)) {
       return null
     }
 
@@ -449,16 +511,24 @@
       return null
     }
 
-    return clampGeometry(player, { left, top, width })
+    if (value.version === STORAGE_SCHEMA_VERSION) {
+      const viewportWidth = Number(value.viewportWidth)
+      const viewportHeight = Number(value.viewportHeight)
+
+      if (Number.isFinite(viewportWidth) && Number.isFinite(viewportHeight)) {
+        return adaptGeometryToViewport(player, value, viewport)
+      }
+    }
+
+    return clampGeometry(player, { left, top, width }, viewport)
   }
 
   function persistGeometry(geometry) {
-    savedGeometry = {
-      version: STORAGE_SCHEMA_VERSION,
-      left: geometry.left,
-      top: geometry.top,
-      width: geometry.width
+    if (!currentPlayer) {
+      return
     }
+
+    savedGeometry = createResponsiveGeometrySnapshot(currentPlayer, geometry)
     storage.set(savedGeometry)
   }
 
@@ -487,10 +557,10 @@
   function getMaxDragWidth(startGeometry, corner, ratio) {
     const maxByWidth = corner.endsWith("left")
       ? startGeometry.left + startGeometry.width - MARGIN
-      : innerWidth - MARGIN - startGeometry.left
+      : getViewportMetrics().width - MARGIN - startGeometry.left
     const maxByHeight = corner.startsWith("top")
       ? (startGeometry.top + startGeometry.height - MARGIN) * ratio
-      : (innerHeight - MARGIN - startGeometry.top) * ratio
+      : (getViewportMetrics().height - MARGIN - startGeometry.top) * ratio
 
     return Math.max(
       getMinWidthForViewport(ratio),
@@ -944,19 +1014,24 @@
 
   function syncPlayer() {
     scheduled = false
+    const viewport = getViewportMetrics()
+    const viewportChanged = !viewportEquals(lastViewport, viewport)
 
     if (document.fullscreenElement || document.pictureInPictureElement) {
+      lastViewport = viewport
       deactivateCurrentPlayer()
       return
     }
 
     if (dragging) {
+      lastViewport = viewport
       return
     }
 
     const player = site.getPlayer()
 
     if (!player || !site.shouldFloat(player)) {
+      lastViewport = viewport
       deactivateCurrentPlayer()
       return
     }
@@ -968,12 +1043,27 @@
       currentGeometry = null
     }
 
+    const responsiveCurrentGeometry =
+      currentPlayer === player && currentGeometry && viewportChanged
+        ? adaptGeometryToViewport(
+            player,
+            createResponsiveGeometrySnapshot(player, currentGeometry, lastViewport),
+            viewport
+          )
+        : currentGeometry
+
     const geometry =
-      (currentPlayer === player && currentGeometry) ||
-      sanitizeSavedGeometry(player, savedGeometry) ||
+      (currentPlayer === player && responsiveCurrentGeometry) ||
+      sanitizeSavedGeometry(player, savedGeometry, viewport) ||
       site.getDefaultGeometry(player)
 
     applyGeometry(player, geometry)
+
+    if (savedGeometry && viewportChanged) {
+      savedGeometry = createResponsiveGeometrySnapshot(player, currentGeometry, viewport)
+    }
+
+    lastViewport = viewport
     attachPlayerInteractions(player)
   }
 
@@ -1006,7 +1096,7 @@
   ensureOverlay()
   installObservers()
   storage.get((value) => {
-    if (value?.version === STORAGE_SCHEMA_VERSION) {
+    if ([2, STORAGE_SCHEMA_VERSION].includes(value?.version)) {
       savedGeometry = value
     } else {
       savedGeometry = null
