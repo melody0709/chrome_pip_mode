@@ -14,6 +14,7 @@
   const STORAGE_PREFIX = "floatingVideoState:"
   const STORAGE_SCHEMA_VERSION = 3
   const MOVE_ZONE_CLASS = "copilot-floating-player-move-zone"
+  const CLOSE_CLASS = "copilot-floating-player-close"
   const MOVE_DRAG_THRESHOLD = 6
   const MOVE_EXCLUDE_SELECTOR = [
     "a",
@@ -29,7 +30,11 @@
     ".bpx-player-control-wrap",
     ".bpx-player-ctrl-bottom",
     ".bpx-player-dialog-wrap",
-    ".bpx-player-toast-wrap"
+    ".bpx-player-toast-wrap",
+    ".bpx-player-mini-close",
+    ".bpx-player-mini-header",
+    ".bpx-player-mini-header-left",
+    ".bpx-player-mini-header-right"
   ].join(", ")
   const PLAYER_STYLE_PROPS = [
     "position",
@@ -45,10 +50,10 @@
   ]
   const BILIBILI_SIDE_NAV_SELECTOR = ".fixed-sidenav-storage"
   const BILIBILI_DOCK_GAP = 0
-  const MARGIN = 1
-  const MIN_WIDTH = 480 
-  const ABSOLUTE_MIN_WIDTH = 480
-  const MAX_VIEWPORT_RATIO = 0.82
+  const MARGIN = 0
+  const MIN_WIDTH = 320
+  const ABSOLUTE_MIN_WIDTH = 320
+  const MAX_VIEWPORT_RATIO = 0.35
   const PLAYER_Z_INDEX = 2147483646
   const DEFAULT_ASPECT_RATIO = 16 / 9
   const site = getSiteController()
@@ -69,6 +74,7 @@
   let pendingMove = null
   let scheduled = false
   let suppressPlayerClickUntil = 0
+  let viewportChangedDuringDrag = false
   let lastViewport = getViewportMetrics()
   const playerInteractionHandlers = new WeakMap()
 
@@ -94,11 +100,15 @@
         }
 
         const rect = player.getBoundingClientRect()
-        const miniWindow = document.querySelector(".mini-player-window.fixed-sidenav-storage-item")
         const miniWarp = document.querySelector(".bpx-player-mini-warp")
-        const nativeMiniVisible = [miniWindow, miniWarp].some(
-          (element) => element && getComputedStyle(element).display !== "none"
-        )
+        
+        let nativeMiniVisible = false;
+        if (miniWarp) {
+          nativeMiniVisible = getComputedStyle(miniWarp).display !== "none"
+        } else {
+          const miniWindow = document.querySelector(".mini-player-window.fixed-sidenav-storage-item")
+          nativeMiniVisible = miniWindow && getComputedStyle(miniWindow).display !== "none"
+        }
 
         return nativeMiniVisible && rect.width > 0 && rect.height > 0
       },
@@ -141,23 +151,73 @@
         clearStyles(player, PLAYER_STYLE_PROPS)
         forgetStyles(player)
         forgetDefaultGeometry(player)
+      },
+      close(player) {
+        const miniWindow = document.querySelector(".mini-player-window.fixed-sidenav-storage-item")
+        if (miniWindow && getComputedStyle(miniWindow).display !== "none") {
+          miniWindow.click()
+          return true
+        }
+        
+        const miniClose = document.querySelector(
+          ".bpx-player-mini-close, .mini-player-window .bpx-player-mini-header-close"
+        )
+        if (miniClose) {
+          miniClose.click()
+          return true
+        }
+
+        return false
       }
     }
+  }
+
+  function isExtensionContextValid() {
+    try {
+      if (globalThis.chrome?.runtime?.id) {
+        return true
+      }
+    } catch {
+      return false
+    }
+    return false
   }
 
   function createStorage(key) {
     if (globalThis.chrome?.storage?.local) {
       return {
         get(callback) {
-          globalThis.chrome.storage.local.get([key], (result) => {
-            callback(result[key] ?? null)
-          })
+          if (!isExtensionContextValid()) {
+            callback(null)
+            return
+          }
+          try {
+            globalThis.chrome.storage.local.get([key], (result) => {
+              callback(result[key] ?? null)
+            })
+          } catch {
+            callback(null)
+          }
         },
         set(value) {
-          globalThis.chrome.storage.local.set({ [key]: value })
+          if (!isExtensionContextValid()) {
+            return
+          }
+          try {
+            globalThis.chrome.storage.local.set({ [key]: value })
+          } catch {
+            return
+          }
         },
         remove() {
-          globalThis.chrome.storage.local.remove(key)
+          if (!isExtensionContextValid()) {
+            return
+          }
+          try {
+            globalThis.chrome.storage.local.remove(key)
+          } catch {
+            return
+          }
         }
       }
     }
@@ -469,6 +529,7 @@
   }
 
   function adaptGeometryToViewport(player, value, viewport = getViewportMetrics()) {
+    const ratio = getAspectRatio(player)
     const left = Number(value.left)
     const top = Number(value.top)
     const width = Number(value.width)
@@ -479,19 +540,30 @@
       : sourceViewportWidth - left - width
     const bottom = Number.isFinite(Number(value.bottom))
       ? Number(value.bottom)
-      : sourceViewportHeight - top - Math.round(width / getAspectRatio(player))
+      : sourceViewportHeight - top - Math.round(width / ratio)
     const widthRatio = Number.isFinite(Number(value.widthRatio))
       ? Number(value.widthRatio)
       : sourceViewportWidth > 0
         ? width / sourceViewportWidth
         : 0
     const nextWidth = widthRatio > 0 ? viewport.width * widthRatio : width
+    const clampedWidth = clamp(
+      Math.round(nextWidth),
+      getMinWidthForViewport(ratio, viewport),
+      getMaxWidthForViewport(ratio, viewport)
+    )
+    const clampedHeight = Math.round(clampedWidth / ratio)
+    const nextLeft = viewport.width - right - clampedWidth
+    const nextTop = viewport.height - bottom - clampedHeight
+    const maxLeft = Math.max(MARGIN, viewport.width - MARGIN - clampedWidth)
+    const maxTop = Math.max(MARGIN, viewport.height - MARGIN - clampedHeight)
 
-    return clampGeometry(player, {
-      left: viewport.width - right - nextWidth,
-      top: viewport.height - bottom - Math.round(nextWidth / getAspectRatio(player)),
-      width: nextWidth
-    }, viewport)
+    return {
+      left: clamp(Math.round(nextLeft), MARGIN, maxLeft),
+      top: clamp(Math.round(nextTop), MARGIN, maxTop),
+      width: clampedWidth,
+      height: clampedHeight
+    }
   }
 
   function sanitizeSavedGeometry(player, value, viewport = getViewportMetrics()) {
@@ -653,6 +725,11 @@
     document.documentElement.style.cursor = dragging.cursor
     persistGeometry(currentGeometry)
     dragging = null
+
+    if (viewportChangedDuringDrag) {
+      viewportChangedDuringDrag = false
+      scheduleSync()
+    }
   }
 
   function onPointerMove(event) {
@@ -773,6 +850,20 @@
     resetGeometry()
   }
 
+  function onCloseButtonClick(event) {
+    event.preventDefault()
+    event.stopPropagation()
+
+    let closedNatively = false
+    if (site.close) {
+      closedNatively = site.close(currentPlayer)
+    }
+
+    if (!closedNatively) {
+      deactivateCurrentPlayer()
+    }
+  }
+
   function ensureOverlay() {
     if (overlay) {
       return overlay
@@ -804,6 +895,16 @@
       moveZone.addEventListener("pointerdown", onMoveZonePointerDown)
       moveZone.addEventListener("dblclick", onHandleDoubleClick)
       overlay.appendChild(moveZone)
+    }
+
+    if (!overlay.querySelector(`.${CLOSE_CLASS}`)) {
+      const closeBtn = document.createElement("div")
+      closeBtn.className = CLOSE_CLASS
+      closeBtn.setAttribute("role", "button")
+      closeBtn.setAttribute("aria-label", "Close floating player")
+      closeBtn.setAttribute("tabindex", "0")
+      closeBtn.addEventListener("click", onCloseButtonClick)
+      overlay.appendChild(closeBtn)
     }
 
     for (const corner of ["top-left", "top-right", "bottom-left", "bottom-right"]) {
@@ -855,6 +956,47 @@
 
       #${OVERLAY_ID} .${MOVE_ZONE_CLASS}:active {
         cursor: grabbing;
+      }
+
+      #${OVERLAY_ID} .${CLOSE_CLASS} {
+        position: absolute;
+        right: -10px;
+        top: -10px;
+        width: 24px;
+        height: 24px;
+        pointer-events: auto;
+        cursor: pointer;
+        opacity: 0;
+        transition: opacity 120ms ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        background: rgba(0, 0, 0, 0.6);
+      }
+
+      #${OVERLAY_ID} .${CLOSE_CLASS}:hover,
+      #${OVERLAY_ID} .${CLOSE_CLASS}:active {
+        opacity: 0.95;
+        background: rgba(0, 0, 0, 0.8);
+      }
+
+      #${OVERLAY_ID} .${CLOSE_CLASS}::before,
+      #${OVERLAY_ID} .${CLOSE_CLASS}::after {
+        content: "";
+        position: absolute;
+        width: 12px;
+        height: 2px;
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 999px;
+      }
+
+      #${OVERLAY_ID} .${CLOSE_CLASS}::before {
+        transform: rotate(45deg);
+      }
+
+      #${OVERLAY_ID} .${CLOSE_CLASS}::after {
+        transform: rotate(-45deg);
       }
 
       #${OVERLAY_ID} .${HANDLE_CLASS} {
@@ -1024,7 +1166,7 @@
     }
 
     if (dragging) {
-      lastViewport = viewport
+      viewportChangedDuringDrag = true
       return
     }
 
@@ -1090,6 +1232,7 @@
     globalThis.addEventListener("resize", scheduleSync, { passive: true })
     globalThis.addEventListener("hashchange", scheduleSync)
     globalThis.addEventListener("popstate", scheduleSync)
+    globalThis.visualViewport?.addEventListener("resize", scheduleSync, { passive: true })
   }
 
   ensureStyles()
