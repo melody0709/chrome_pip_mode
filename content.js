@@ -61,7 +61,7 @@
   const MIN_WIDTH = 320
   const ABSOLUTE_MIN_WIDTH = 320
   const MAX_VIEWPORT_RATIO = 0.35
-  const PLAYER_Z_INDEX = 2147483646
+  const PLAYER_Z_INDEX = 999999
   const DEFAULT_ASPECT_RATIO = 16 / 9
   const site = getSiteController()
 
@@ -102,6 +102,7 @@
 function createYouTubeController() {
     const SCROLL_THRESHOLD = 256
     let originalRect = null
+    let manuallyClosed = false
     const ANCESTOR_OVERFLOW_CLASS = "copilot-floating-ancestor-overflow"
     const ANCESTOR_STACKING_CLASS = "copilot-floating-ancestor-stacking"
     const ancestorSavedStyles = new WeakMap()
@@ -166,6 +167,15 @@ function createYouTubeController() {
 
         const scrollBottom = globalThis.scrollY + globalThis.innerHeight
         const playerOutOfView = globalThis.scrollY > originalRect.bottom || scrollBottom < originalRect.top
+        
+        if (!playerOutOfView) {
+          manuallyClosed = false
+        }
+
+        if (manuallyClosed) {
+          return false
+        }
+
         return playerOutOfView
       },
       getDefaultGeometry(player) {
@@ -216,7 +226,7 @@ function createYouTubeController() {
         globalThis.dispatchEvent(new Event("resize"))
       },
       close(player) {
-        globalThis.scrollTo({ top: 0, behavior: 'instant' })
+        manuallyClosed = true
         return false
       }
     }
@@ -1101,7 +1111,7 @@ function createYouTubeController() {
         display: none;
         pointer-events: none;
         overflow: visible;
-        z-index: 2147483647;
+        z-index: ${PLAYER_Z_INDEX + 1};
       }
 
       #${OVERLAY_ID}.${OVERLAY_ACTIVE_CLASS} {
@@ -1284,7 +1294,7 @@ function createYouTubeController() {
 
 #movie_player.${YOUTUBE_CLASS} {
         position: fixed !important;
-        z-index: 2147483647 !important;
+        z-index: ${PLAYER_Z_INDEX + 1} !important;
         top: 0 !important;
         left: 0 !important;
         background: #000 !important;
