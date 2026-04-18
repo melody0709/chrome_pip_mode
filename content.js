@@ -7,6 +7,7 @@
 
   const ACTIVE_CLASS = "copilot-floating-player-active"
   const BILIBILI_CLASS = "copilot-floating-player-bilibili"
+  const YOUTUBE_CLASS = "copilot-floating-player-youtube"
   const OVERLAY_ID = "copilot-floating-player-overlay"
   const OVERLAY_ACTIVE_CLASS = "copilot-floating-player-overlay-active"
   const STYLE_ID = "copilot-floating-player-style"
@@ -34,7 +35,12 @@
     ".bpx-player-mini-close",
     ".bpx-player-mini-header",
     ".bpx-player-mini-header-left",
-    ".bpx-player-mini-header-right"
+    ".bpx-player-mini-header-right",
+    ".ytp-chrome-bottom",
+    ".ytp-chrome-top",
+    ".ytp-miniplayer-ui",
+    ".ytp-miniplayer-close-button",
+    ".ytp-miniplayer-expand-watch-page-button"
   ].join(", ")
   const PLAYER_STYLE_PROPS = [
     "position",
@@ -46,7 +52,8 @@
     "height",
     "maxWidth",
     "maxHeight",
-    "zIndex"
+    "zIndex",
+    "transform"
   ]
   const BILIBILI_SIDE_NAV_SELECTOR = ".fixed-sidenav-storage"
   const BILIBILI_DOCK_GAP = 0
@@ -85,6 +92,146 @@
       return createBilibiliController()
     }
 
+    if (host.includes("youtube.com")) {
+      return createYouTubeController()
+    }
+
+    return null
+  }
+
+function createYouTubeController() {
+    const SCROLL_THRESHOLD = 256
+    let originalRect = null
+    const ANCESTOR_OVERFLOW_CLASS = "copilot-floating-ancestor-overflow"
+    const ANCESTOR_STACKING_CLASS = "copilot-floating-ancestor-stacking"
+    const ancestorSavedStyles = new WeakMap()
+
+    function setAncestorsOverflowVisible(player) {
+      let el = player.parentElement
+      while (el && el !== document.body) {
+        el.classList.add(ANCESTOR_OVERFLOW_CLASS)
+
+        const computed = getComputedStyle(el)
+        const saved = {
+          position: el.style.position,
+          zIndex: el.style.zIndex
+        }
+        ancestorSavedStyles.set(el, saved)
+
+        if (computed.position === "static") {
+          el.classList.add(ANCESTOR_STACKING_CLASS)
+        }
+        el.style.zIndex = String(PLAYER_Z_INDEX)
+
+        el = el.parentElement
+      }
+    }
+
+    function clearAncestorsOverflowVisible() {
+      document.querySelectorAll(`.${ANCESTOR_OVERFLOW_CLASS}`).forEach(el => {
+        el.classList.remove(ANCESTOR_OVERFLOW_CLASS)
+        el.classList.remove(ANCESTOR_STACKING_CLASS)
+
+        const saved = ancestorSavedStyles.get(el)
+        if (saved) {
+          el.style.position = saved.position
+          el.style.zIndex = saved.zIndex
+          ancestorSavedStyles.delete(el)
+        }
+      })
+    }
+
+    return {
+      id: "youtube",
+      getPlayer() {
+        if (!location.pathname.startsWith("/watch")) return null
+        return document.querySelector("#movie_player") || document.querySelector(".html5-video-player")
+      },
+      shouldFloat(player) {
+        if (!player) return false
+        if (!location.pathname.startsWith("/watch")) return false
+        if (player.classList.contains("ytp-player-minimized")) return false
+
+        const rect = player.getBoundingClientRect()
+        if (rect.width <= 0 || rect.height <= 0) return false
+
+        if (!player.classList.contains(YOUTUBE_CLASS)) {
+          originalRect = {
+            top: rect.top + globalThis.scrollY,
+            bottom: rect.bottom + globalThis.scrollY
+          }
+        }
+
+        if (!originalRect) return false
+
+        const scrollBottom = globalThis.scrollY + globalThis.innerHeight
+        const playerOutOfView = globalThis.scrollY > originalRect.bottom || scrollBottom < originalRect.top
+        return playerOutOfView
+      },
+      getDefaultGeometry(player) {
+        const saved = getSavedYouTubeGeometry()
+        if (saved) {
+          return clampGeometry(player, saved)
+        }
+        
+        const viewport = getViewportMetrics()
+        const width = 320
+        const height = Math.round(width / DEFAULT_ASPECT_RATIO)
+        return clampGeometry(player, {
+          left: viewport.width - width - 24,
+          top: viewport.height - height - 24,
+          width: width
+        })
+      },
+      applyGeometry(player, geometry) {
+        const isNewActivation = !player.classList.contains(YOUTUBE_CLASS)
+
+        if (isNewActivation) {
+          setAncestorsOverflowVisible(player)
+        }
+
+        rememberStyles(player, PLAYER_STYLE_PROPS)
+        player.classList.add(ACTIVE_CLASS, YOUTUBE_CLASS)
+
+        player.style.position = "fixed"
+        player.style.top = "0"
+        player.style.left = "0"
+        player.style.right = "auto"
+        player.style.bottom = "auto"
+        player.style.width = `${geometry.width}px`
+        player.style.height = `${geometry.height}px`
+        player.style.maxWidth = "100vw"
+        player.style.maxHeight = "100vh"
+        player.style.zIndex = String(PLAYER_Z_INDEX)
+        player.style.transform = `translate(${geometry.left}px, ${geometry.top}px)`
+      },
+      cleanup(player) {
+        player.classList.remove(ACTIVE_CLASS, YOUTUBE_CLASS)
+        restoreStyles(player, PLAYER_STYLE_PROPS)
+        forgetStyles(player)
+        forgetDefaultGeometry(player)
+        originalRect = null
+
+        clearAncestorsOverflowVisible()
+        globalThis.dispatchEvent(new Event("resize"))
+      },
+      close(player) {
+        globalThis.scrollTo({ top: 0, behavior: 'instant' })
+        return false
+      }
+    }
+  }
+
+  function getSavedYouTubeGeometry() {
+    try {
+      const data = globalThis.localStorage.getItem("floatingVideoState:youtube")
+      if (data) {
+        const value = JSON.parse(data)
+        if (value?.version === STORAGE_SCHEMA_VERSION && Number.isFinite(value.left) && Number.isFinite(value.top) && Number.isFinite(value.width)) {
+          return { left: value.left, top: value.top, width: value.width }
+        }
+      }
+    } catch {}
     return null
   }
 
@@ -275,6 +422,23 @@
 
     for (const property of properties) {
       element.style[property] = ""
+    }
+  }
+
+  function restoreStyles(element, properties) {
+    if (!element) {
+      return
+    }
+
+    const snapshot = rememberedStyles.get(element)
+
+    if (!snapshot) {
+      clearStyles(element, properties)
+      return
+    }
+
+    for (const property of properties) {
+      element.style[property] = snapshot[property] ?? ""
     }
   }
 
@@ -1102,7 +1266,7 @@
         height: 2px;
       }
 
-      .${BILIBILI_CLASS} {
+      .${BILIBILI_CLASS}, .${YOUTUBE_CLASS} {
         isolation: isolate;
       }
 
@@ -1117,6 +1281,51 @@
         max-width: none !important;
         max-height: none !important;
       }
+
+#movie_player.${YOUTUBE_CLASS} {
+        position: fixed !important;
+        z-index: 2147483647 !important;
+        top: 0 !important;
+        left: 0 !important;
+        background: #000 !important;
+        box-shadow: rgba(0, 0, 0, .4) 0 2px 8px !important;
+        will-change: transform, width, height !important;
+      }
+
+      #movie_player.${YOUTUBE_CLASS} .html5-video-container {
+        width: 100% !important;
+        height: 100% !important;
+      }
+
+      #movie_player.${YOUTUBE_CLASS} video {
+        width: 100% !important;
+        height: 100% !important;
+        max-width: none !important;
+        max-height: none !important;
+        top: 0 !important;
+        left: 0 !important;
+        object-fit: contain !important;
+      }
+
+      #movie_player.${YOUTUBE_CLASS} .ytp-chrome-bottom {
+        width: calc(100% - 24px) !important;
+      }
+
+      #movie_player.${YOUTUBE_CLASS} .ytp-miniplayer-button,
+      #movie_player.${YOUTUBE_CLASS} .ytp-size-button {
+        display: none !important;
+      }
+
+      .copilot-floating-ancestor-overflow {
+        overflow: visible !important;
+        clip: auto !important;
+        clip-path: none !important;
+        contain: none !important;
+      }
+
+      .copilot-floating-ancestor-stacking {
+        position: relative !important;
+      }
     `
 
     document.documentElement.appendChild(style)
@@ -1125,7 +1334,8 @@
   function applyGeometry(player, geometry) {
     const nextGeometry = clampGeometry(player, geometry)
     const currentRect = rectToGeometry(player.getBoundingClientRect())
-    const needsRefresh = !player.classList.contains(ACTIVE_CLASS) || !geometryEquals(currentRect, nextGeometry)
+    const isNewActivation = !player.classList.contains(ACTIVE_CLASS)
+    const needsRefresh = isNewActivation || !geometryEquals(currentRect, nextGeometry)
 
     if (needsRefresh) {
       site.applyGeometry(player, nextGeometry)
@@ -1134,6 +1344,10 @@
     currentPlayer = player
     currentGeometry = nextGeometry
     syncOverlay(nextGeometry)
+
+    if (isNewActivation) {
+      persistGeometry(nextGeometry)
+    }
   }
 
   function deactivateCurrentPlayer() {

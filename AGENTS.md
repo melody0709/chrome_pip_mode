@@ -13,7 +13,6 @@ cmd /c 'start "" "C:\Program Files\Google\Chrome\Application\chrome.exe" --remot
 - Use the built-in MCP server for testing (e.g. `@modelcontextprotocol/server-puppeteer` tools) connected to `ws://127.0.0.1:9222` instead of writing custom Node.js Puppeteer scripts.
 - You can get the active WebSocket endpoints via `curl -s http://127.0.0.1:9222/json`.
 - **Critical Note:** Never run `npm install puppeteer-core` or create temporary `test_extension.js` files in this directory. Rely entirely on external MCP tools or temporary scripts in `$env:TEMP` to avoid cluttering the repository with `node_modules` and `package.json`.
-
 - `D:\Chrome_MCP_Data` is the mirrored test profile used for MCP-driven browser testing.
 - The mirrored profile was prepared from `C:\Users\kawae\AppData\Local\Google\Chrome\User Data\Profile 1`.
 - After editing extension files, reload `Floating Video Resizer` in `chrome://extensions/` before testing.
@@ -24,4 +23,10 @@ cmd /c 'start "" "C:\Program Files\Google\Chrome\Application\chrome.exe" --remot
 - Bilibili floating mode should be detected from the native mini-player visibility state, not from `position: fixed` alone.
 - Legacy saved geometry can override new defaults; keep the storage schema version in sync when changing default layout behavior.
 - On Bilibili cleanup, clear extension-managed geometry styles instead of restoring native floating offsets.
+
+
+## 踩坑规则
+
+> AI 在完成重大修改或解决复杂报错后，可追加规则。
+
 
