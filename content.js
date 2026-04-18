@@ -60,7 +60,7 @@
   const MARGIN = 0
   const MIN_WIDTH = 320
   const ABSOLUTE_MIN_WIDTH = 320
-  const MAX_VIEWPORT_RATIO = 0.35
+  const MAX_VIEWPORT_RATIO = 0.4
   const PLAYER_Z_INDEX = 999999
   const DEFAULT_ASPECT_RATIO = 16 / 9
   const site = getSiteController()
