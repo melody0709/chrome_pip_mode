@@ -871,7 +871,6 @@ function createYouTubeController() {
     safelySetPointerCapture(move.player, event.pointerId)
     document.body.style.userSelect = "none"
     document.documentElement.style.cursor = "grabbing"
-    suppressPlayerClickUntil = performance.now() + 400
     clearPendingMove()
     document.addEventListener("pointermove", onPointerMove, true)
     document.addEventListener("pointerup", stopDragging, true)
@@ -898,6 +897,9 @@ function createYouTubeController() {
     document.body.style.userSelect = dragging.userSelect
     document.documentElement.style.cursor = dragging.cursor
     persistGeometry(currentGeometry)
+    
+    suppressPlayerClickUntil = performance.now() + 200
+    
     dragging = null
 
     if (viewportChangedDuringDrag) {
