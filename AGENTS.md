@@ -1,32 +1,34 @@
 # AGENTS.md
 
-## Chrome DevTools MCP
+## Commands & Workflow
 
-- Connect Chrome DevTools MCP with `--browser-url=http://localhost:9222`. (Note: use `localhost` instead of `127.0.0.1` to avoid Node.js fetch ECONNREFUSED/IPv6 resolution errors)
-- Do not rely on `--autoConnect` for this repo's browser testing. Direct `browser-url` connection is the stable path that worked.
-- Preferred test browser launch on this machine (use `cmd /c start` to ensure arguments parse correctly without hanging the terminal):
-
+### Browser Setup for Testing
+Launch Chrome with the extension loaded and remote debugging enabled:
 ```cmd
 cmd /c 'start "" "C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222 --user-data-dir="D:\Chrome_MCP_Data" --profile-directory="Profile 1" --load-extension="D:\#GITHUB_melody0709\chrome_pip_mode"'
 ```
 
-- Use the built-in MCP server for testing (e.g. `@modelcontextprotocol/server-puppeteer` tools) connected to `ws://127.0.0.1:9222` instead of writing custom Node.js Puppeteer scripts.
-- You can get the active WebSocket endpoints via `curl -s http://127.0.0.1:9222/json`.
-- **Critical Note:** Never run `npm install puppeteer-core` or create temporary `test_extension.js` files in this directory. Rely entirely on external MCP tools or temporary scripts in `$env:TEMP` to avoid cluttering the repository with `node_modules` and `package.json`.
-- `D:\Chrome_MCP_Data` is the mirrored test profile used for MCP-driven browser testing.
-- The mirrored profile was prepared from `C:\Users\kawae\AppData\Local\Google\Chrome\User Data\Profile 1`.
-- After editing extension files, reload `Floating Video Resizer` in `chrome://extensions/` before testing.
-- Primary Bilibili regression page used during this task: `https://www.bilibili.com/video/BV1xx411c7mD/`.
+### Verification
+- **Manual:** After editing, reload "Floating Video Resizer" in `chrome://extensions/`.
+- **MCP:** Use `--browser-url=http://localhost:9222`. Use `@modelcontextprotocol/server-puppeteer` tools.
+- **Regression Page:** `https://www.bilibili.com/video/BV1xx411c7mD/`
 
-## Floating Player Notes
+### Critical Constraints
+- **NO `npm install`:** This repo has no `package.json`. Do NOT create one or install `node_modules`. Use `$env:TEMP` for temporary scripts.
+- **MCP Connection:** Use `localhost` instead of `127.0.0.1` to avoid Node.js fetch errors. Do not rely on `--autoConnect`.
 
-- Bilibili floating mode should be detected from the native mini-player visibility state, not from `position: fixed` alone.
-- Legacy saved geometry can override new defaults; keep the storage schema version in sync when changing default layout behavior.
-- On Bilibili cleanup, clear extension-managed geometry styles instead of restoring native floating offsets.
+## Architecture & Logic Quirks
 
+- **Site Controllers:** `content.js` uses a strategy pattern. `getSiteController()` returns an object with site-specific logic (Bilibili/YouTube).
+- **Floating Detection:**
+  - **Bilibili:** Must be detected from the native mini-player visibility state, NOT `position: fixed` alone.
+  - **YouTube:** Logic based on scroll threshold and player visibility.
+- **CSS Piercing (YouTube):** YouTube requires adding `ANCESTOR_OVERFLOW_CLASS` to all parent elements to ensure the player isn't clipped by `overflow: hidden` when floating.
+- **Drag & Drop:** `MOVE_EXCLUDE_SELECTOR` prevents dragging when interacting with players controls or standard UI elements (links, buttons).
+- **Storage:** Uses `chrome.storage.local` with `STORAGE_SCHEMA_VERSION`. Increment this when changing geometry defaults to invalidate old user state.
+- **Cleanup:** On Bilibili, clear extension-managed styles instead of restoring native offsets.
 
 ## 踩坑规则
 
-> AI 在完成重大修改或解决复杂报错后，可追加规则。
-
-
+- Bilibili 浮窗清理时应直接清除 extension 注入的 style，而非尝试恢复原位，否则会导致定位错乱。
+- YouTube 浮窗需要递归修改父级 `overflow` 属性（`ANCESTOR_OVERFLOW_CLASS`），否则会被容器裁剪。

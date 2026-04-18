@@ -2,11 +2,12 @@
 
 [简体中文说明](README.zh-CN.md)
 
-This Chrome extension improves floating video behavior on Bilibili.
+This Chrome extension improves floating video behavior on Bilibili and YouTube.
 
 ## What it does
 
 - Enhances the site's built-in floating player and makes it resizable from all four corners.
+- Supports YouTube's miniplayer (triggered by scrolling or native button).
 
 ## Features
 
@@ -16,7 +17,7 @@ This Chrome extension improves floating video behavior on Bilibili.
 - When the browser window is resized, the floating player scales with the viewport while keeping its right and bottom offsets aligned.
 - Preserve the original aspect ratio while resizing.
 - Persist size and floating position with `chrome.storage.local`.
-- Double-click any corner handle to reset to the default Bilibili geometry.
+- Double-click any corner handle to reset to the default site geometry.
 - Includes a new extension logo source at `assets/logo.svg` and the packaged icon at `assets/icon-128.png`.
 
 ## Load the extension
@@ -28,15 +29,15 @@ This Chrome extension improves floating video behavior on Bilibili.
 
 ## Use it
 
-1. Open a Bilibili video page.
-2. Scroll until the floating mini player appears.
+1. Open a Bilibili or YouTube video page.
+2. Trigger the floating mini player (scroll down on Bilibili, or scroll/click miniplayer on YouTube).
 3. Drag the floating player from a non-control area to move it.
 4. Drag any corner handle to resize.
 5. Double-click the move strip or a corner handle if you want to reset the size and position.
 
 ## MCP Test Setup
 
-- Preferred Chrome DevTools MCP connection: `--browser-url=http://127.0.0.1:9222`
+- Preferred Chrome DevTools MCP connection: `--browser-url=http://localhost:9222`
 - Preferred test browser launch on this machine:
 
 ```powershell
