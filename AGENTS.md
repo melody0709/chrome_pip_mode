@@ -14,7 +14,7 @@ cmd /c 'start "" "C:\Program Files\Google\Chrome\Application\chrome.exe" --remot
 - **Regression Page:** `https://www.bilibili.com/video/BV1xx411c7mD/`
 
 ### Critical Constraints
-- **Sync Versioning:** Whenever a version change occurs, always update `manifest.json`, `package.json`, and `CHANGELOG.md` concurrently. Ensure consistency across all documentation (`README.md`, `README.zh-CN.md`).dont't auto commit
+
 - **NO `npm install`:** This repo has no `package.json` for runtime dependencies (only dev types). Do NOT create or install `node_modules`. Use `$env:TEMP` for temporary scripts.
 - **MCP Connection:** Use `localhost` instead of `127.0.0.1` to avoid Node.js fetch errors. Do not rely on `--autoConnect`.
 
