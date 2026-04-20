@@ -6,6 +6,8 @@
 - Fixed viewport tier detection by using absolute window physical dimensions to avoid system scaling/DPI zoom issues
 - Updated MAX_VIEWPORT_RATIO from 0.38 to 0.50
 - Refined tiered thresholds for better multiscreen behaviors (MEDIUM is now 50%-70%)
+- Fixed an issue where manual resizing of the floating player wouldn't correctly save the new width ratio to the active tier, causing tiers to overwrite each other's memory
+- Fixed the anchoring distance calculation so the floating player maintains its absolute distance from the right and bottom edges during window scaling and page zooming
 - Updated storage schema to v6 with automated state migration
 
 All notable changes to this project will be documented in this file.
