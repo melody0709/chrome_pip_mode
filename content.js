@@ -13,7 +13,74 @@
   const STYLE_ID = "copilot-floating-player-style"
   const HANDLE_CLASS = "copilot-floating-player-handle"
   const STORAGE_PREFIX = "floatingVideoState:"
-  const STORAGE_SCHEMA_VERSION = 4
+  const STORAGE_SCHEMA_VERSION = 5
+
+  // 视窗档位配置（基于屏幕物理宽度比例）
+  const VIEWPORT_TIERS = {
+    MAX: { min: 0.85, max: 1.00, key: 'max' },    // 大/全屏: 85%-100%
+    WIDE: { min: 0.70, max: 0.85, key: 'wide' },   // 宽屏: 70%-85%
+    MEDIUM: { min: 0.55, max: 0.70, key: 'medium' }, // 中/分屏: 55%-70%
+    SMALL: { min: 0.00, max: 0.55, key: 'small' }  // 小/挂件: ≤55%
+  }
+
+  // 默认各档位 widthRatio
+  const DEFAULT_WIDTH_RATIOS = {
+    max: 0.20,    // MAX 档位默认 20%
+    wide: 0.22,   // WIDE 档位默认 22%
+    medium: 0.25, // MEDIUM 档位默认 25%
+    small: 0.30   // SMALL 档位默认 30%（小窗口浮窗相对更大）
+  }
+
+  // 获取当前档位
+  function getCurrentTier(viewportWidth, screenWidth) {
+    const ratio = viewportWidth / screenWidth
+    if (ratio >= VIEWPORT_TIERS.MAX.min) return 'max'
+    if (ratio >= VIEWPORT_TIERS.WIDE.min) return 'wide'
+    if (ratio >= VIEWPORT_TIERS.MEDIUM.min) return 'medium'
+    return 'small'
+  }
+
+  // 获取当前档位的 widthRatio
+  function getCurrentWidthRatio(widthRatios, currentTier, fallbackRatio) {
+    if (widthRatios && Number.isFinite(widthRatios[currentTier])) {
+      return widthRatios[currentTier]
+    }
+    return fallbackRatio
+  }
+
+  // 获取屏幕宽度（优先使用物理屏幕宽度）
+  function getScreenWidth() {
+    if (globalThis.screen?.width) {
+      return globalThis.screen.width
+    }
+    return getViewportMetrics().width
+  }
+
+  // 从版本 4 迁移到版本 5
+  function migrateV4ToV5(value, viewport) {
+    const singleRatio = value.widthRatio || (value.width / value.viewportWidth) || 0.20
+    const screenWidth = getScreenWidth()
+    const currentTier = getCurrentTier(viewport.width, screenWidth)
+
+    return {
+      version: 5,
+      left: value.left,
+      top: value.top,
+      width: value.width,
+      viewportWidth: value.viewportWidth,
+      viewportHeight: value.viewportHeight,
+      right: value.right,
+      bottom: value.bottom,
+      pageZoom: value.pageZoom,
+      widthRatios: {
+        max: singleRatio,
+        wide: singleRatio,
+        medium: singleRatio,
+        small: singleRatio
+      },
+      activeTier: currentTier
+    }
+  }
   const MOVE_ZONE_CLASS = "copilot-floating-player-move-zone"
   const CLOSE_CLASS = "copilot-floating-player-close"
   const MOVE_DRAG_THRESHOLD = 6
@@ -246,9 +313,17 @@ function createYouTubeController() {
       const data = globalThis.localStorage.getItem("floatingVideoState:youtube")
       if (data) {
         const value = JSON.parse(data)
-          if ((value?.version === STORAGE_SCHEMA_VERSION || value?.version === 3) && Number.isFinite(value.left) && Number.isFinite(value.top) && Number.isFinite(value.width)) {
-            return { left: value.left, top: value.top, width: value.width, widthRatio: value.widthRatio, pageZoom: value.pageZoom }
+        // 支持版本 3, 4, 5
+        if ([3, 4, 5].includes(value?.version) && Number.isFinite(value.left) && Number.isFinite(value.top) && Number.isFinite(value.width)) {
+          return {
+            left: value.left,
+            top: value.top,
+            width: value.width,
+            widthRatio: value.widthRatio,
+            widthRatios: value.widthRatios,
+            pageZoom: value.pageZoom
           }
+        }
       }
     } catch {}
     return null
@@ -694,28 +769,49 @@ function createYouTubeController() {
       const maxLeft = Math.max(MARGIN, viewport.width - MARGIN - width)
       const maxTop = Math.max(MARGIN, viewport.height - MARGIN - height)
 
-        const result = {
-          left: clamp(Math.round(geometry.left), MARGIN, maxLeft),
-          top: clamp(Math.round(geometry.top), MARGIN, maxTop),
-          width,
-          height
-        }
-        
-        if (Number.isFinite(Number(geometry.widthRatio))) {
-          result.widthRatio = Number(geometry.widthRatio)
-        }
-        
-        if (Number.isFinite(Number(geometry.pageZoom))) {
-          result.pageZoom = Number(geometry.pageZoom)
-        } else {
-          result.pageZoom = getPageZoom()
-        }
-        
-        return result
+      const result = {
+        left: clamp(Math.round(geometry.left), MARGIN, maxLeft),
+        top: clamp(Math.round(geometry.top), MARGIN, maxTop),
+        width,
+        height
+      }
+
+      if (Number.isFinite(Number(geometry.widthRatio))) {
+        result.widthRatio = Number(geometry.widthRatio)
+      }
+
+      // 传递 widthRatios 供后续使用
+      if (geometry.widthRatios) {
+        result.widthRatios = geometry.widthRatios
+      }
+
+      if (Number.isFinite(Number(geometry.pageZoom))) {
+        result.pageZoom = Number(geometry.pageZoom)
+      } else {
+        result.pageZoom = getPageZoom()
+      }
+
+      return result
     }
 
     function createResponsiveGeometrySnapshot(player, geometry, viewport = getViewportMetrics()) {
       const nextGeometry = clampGeometry(player, geometry, viewport)
+      const screenWidth = getScreenWidth()
+      const currentTier = getCurrentTier(viewport.width, screenWidth)
+
+      // 继承或初始化各档位的 widthRatios
+      const existingRatios = geometry.widthRatios || {}
+      const currentRatio = nextGeometry.width / viewport.width
+
+      const widthRatios = {
+        max: Number.isFinite(existingRatios.max) ? existingRatios.max : currentRatio,
+        wide: Number.isFinite(existingRatios.wide) ? existingRatios.wide : currentRatio,
+        medium: Number.isFinite(existingRatios.medium) ? existingRatios.medium : currentRatio,
+        small: Number.isFinite(existingRatios.small) ? existingRatios.small : currentRatio
+      }
+
+      // 更新当前档位的 widthRatio
+      widthRatios[currentTier] = currentRatio
 
       return {
         version: STORAGE_SCHEMA_VERSION,
@@ -725,13 +821,12 @@ function createYouTubeController() {
         viewportWidth: viewport.width,
         viewportHeight: viewport.height,
         right: Math.max(MARGIN, viewport.width - nextGeometry.left - nextGeometry.width),
-          bottom: Math.max(MARGIN, viewport.height - nextGeometry.top - nextGeometry.height),
-          widthRatio: Number.isFinite(Number(geometry.widthRatio)) 
-            ? Number(geometry.widthRatio) 
-            : nextGeometry.width / viewport.width,
-          pageZoom: Number.isFinite(Number(geometry.pageZoom)) ? Number(geometry.pageZoom) : getPageZoom()
-        }
+        bottom: Math.max(MARGIN, viewport.height - nextGeometry.top - nextGeometry.height),
+        widthRatios,
+        activeTier: currentTier,
+        pageZoom: Number.isFinite(Number(geometry.pageZoom)) ? Number(geometry.pageZoom) : getPageZoom()
       }
+    }
 
       function adaptGeometryToViewport(player, value, viewport = getViewportMetrics()) {
         const ratio = getAspectRatio(player)
@@ -740,7 +835,7 @@ function createYouTubeController() {
         const width = Number(value.width)
         const sourceViewportWidth = Number(value.viewportWidth)
         const sourceViewportHeight = Number(value.viewportHeight)
-        
+
         const oldZoom = Number.isFinite(Number(value.pageZoom)) ? Number(value.pageZoom) : getPageZoom()
         const currentZoom = getPageZoom()
         const zoomRatio = oldZoom / currentZoom
@@ -756,13 +851,16 @@ function createYouTubeController() {
         right *= zoomRatio
         bottom *= zoomRatio
 
-        const widthRatio = Number.isFinite(Number(value.widthRatio))
-          ? Number(value.widthRatio)
-          : sourceViewportWidth > 0
-            ? width / sourceViewportWidth
-            : 0
+        // 获取当前档位
+        const screenWidth = getScreenWidth()
+        const currentTier = getCurrentTier(viewport.width, screenWidth)
 
-        const nextWidth = widthRatio > 0 ? viewport.width * widthRatio : width * zoomRatio
+        // 获取当前档位的 widthRatio（支持多档位或单档位）
+        const fallbackRatio = sourceViewportWidth > 0 ? width / sourceViewportWidth : 0.20
+        const currentWidthRatio = getCurrentWidthRatio(value.widthRatios, currentTier, fallbackRatio)
+
+        // 使用当前档位的 widthRatio 计算宽度
+        const nextWidth = viewport.width * currentWidthRatio
 
         const clampedWidth = clamp(
           Math.round(nextWidth),
@@ -771,16 +869,30 @@ function createYouTubeController() {
         )
         const clampedHeight = Math.round(clampedWidth / ratio)
         const nextLeft = viewport.width - right - clampedWidth
-        
-        // By recalculating nextTop based on the absolute bottom offset, 
+
+        // By recalculating nextTop based on the absolute bottom offset,
         // we ensure that "the height of the small window from the bottom of the browser remains unchanged"
         const nextTop = viewport.height - bottom - clampedHeight
-        
+
         const maxLeft = Math.max(MARGIN, viewport.width - MARGIN - clampedWidth)
         const maxTop = Math.max(MARGIN, viewport.height - MARGIN - clampedHeight)
 
-        const finalWidthRatio = Number.isFinite(widthRatio) ? widthRatio : (width / viewport.width)
-        return clampGeometry(player, { left: nextLeft, top: nextTop, width: clampedWidth, widthRatio: finalWidthRatio, pageZoom: currentZoom }, viewport)
+        // 保持 widthRatios 供后续使用
+        const widthRatios = value.widthRatios || {
+          max: currentWidthRatio,
+          wide: currentWidthRatio,
+          medium: currentWidthRatio,
+          small: currentWidthRatio
+        }
+
+        return clampGeometry(player, {
+          left: nextLeft,
+          top: nextTop,
+          width: clampedWidth,
+          widthRatio: currentWidthRatio,
+          widthRatios,
+          pageZoom: currentZoom
+        }, viewport)
       }
 
   function sanitizeSavedGeometry(player, value, viewport = getViewportMetrics()) {
@@ -788,42 +900,66 @@ function createYouTubeController() {
       return null
     }
 
-      if (![2, 3, STORAGE_SCHEMA_VERSION].includes(value.version)) {
-        return null
-      }
-
-    const left = Number(value.left)
-      const top = Number(value.top)
-      const width = Number(value.width)
-      const widthRatio = Number(value.widthRatio)
-      const pageZoom = Number(value.pageZoom)
-
-      if (!Number.isFinite(left) || !Number.isFinite(top) || !Number.isFinite(width)) {
-        return null
-      }
-
-      if (value.version === STORAGE_SCHEMA_VERSION || value.version === 3) {
-        const viewportWidth = Number(value.viewportWidth)
-        const viewportHeight = Number(value.viewportHeight)
-
-        if (Number.isFinite(viewportWidth) && Number.isFinite(viewportHeight)) {
-          return adaptGeometryToViewport(player, value, viewport)
-        }
-      }
-
-      const finalWidthRatio = Number.isFinite(widthRatio) ? widthRatio : (width / viewport.width)
-      const finalPageZoom = Number.isFinite(pageZoom) ? pageZoom : getPageZoom()
-      return clampGeometry(player, { left, top, width, widthRatio: finalWidthRatio, pageZoom: finalPageZoom }, viewport)
+    // 支持版本 3, 4, 5
+    if (![2, 3, 4, 5].includes(value.version)) {
+      return null
     }
 
-  function persistGeometry(geometry) {
+    const left = Number(value.left)
+    const top = Number(value.top)
+    const width = Number(value.width)
+
+    if (!Number.isFinite(left) || !Number.isFinite(top) || !Number.isFinite(width)) {
+      return null
+    }
+
+    // 版本 5：直接使用多档位逻辑
+    if (value.version === 5) {
+      const viewportWidth = Number(value.viewportWidth)
+      const viewportHeight = Number(value.viewportHeight)
+
+      if (Number.isFinite(viewportWidth) && Number.isFinite(viewportHeight)) {
+        return adaptGeometryToViewport(player, value, viewport)
+      }
+    }
+
+    // 版本 3/4：迁移到版本 5
+    if (value.version === 3 || value.version === 4) {
+      const migratedValue = migrateV4ToV5(value, viewport)
+      return adaptGeometryToViewport(player, migratedValue, viewport)
+    }
+
+    // 版本 2 及以下：使用旧逻辑
+    const widthRatio = Number(value.widthRatio)
+    const pageZoom = Number(value.pageZoom)
+    const finalWidthRatio = Number.isFinite(widthRatio) ? widthRatio : (width / viewport.width)
+    const finalPageZoom = Number.isFinite(pageZoom) ? pageZoom : getPageZoom()
+    return clampGeometry(player, { left, top, width, widthRatio: finalWidthRatio, pageZoom: finalPageZoom }, viewport)
+  }
+
+  // 防抖函数
+  function debounce(fn, delay) {
+    let timer = null
+    return function (...args) {
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(() => {
+        fn.apply(this, args)
+        timer = null
+      }, delay)
+    }
+  }
+
+  // 立即执行的持久化（用于需要立即保存的场景）
+  function persistGeometryImmediate(geometry) {
     if (!currentPlayer) {
       return
     }
-
     savedGeometry = createResponsiveGeometrySnapshot(currentPlayer, geometry)
     storage.set(savedGeometry)
   }
+
+  // 防抖持久化（用于频繁触发的场景，如拖拽）
+  const persistGeometry = debounce(persistGeometryImmediate, 500)
 
   function hideOverlay() {
     if (!overlay) {
@@ -879,23 +1015,31 @@ function createYouTubeController() {
     const left = corner.endsWith("left")
       ? startGeometry.left + (startGeometry.width - width)
       : startGeometry.left
-      const top = corner.startsWith("top")
-        ? startGeometry.top + (startGeometry.height - height)
-        : startGeometry.top
+    const top = corner.startsWith("top")
+      ? startGeometry.top + (startGeometry.height - height)
+      : startGeometry.top
 
-      return clampGeometry(currentPlayer, { left, top, width, widthRatio: width / getViewportMetrics().width, pageZoom: getPageZoom() })
-    }
+    return clampGeometry(currentPlayer, {
+      left,
+      top,
+      width,
+      widthRatio: width / getViewportMetrics().width,
+      widthRatios: startGeometry.widthRatios,
+      pageZoom: getPageZoom()
+    })
+  }
 
     function computeMoveGeometry(event) {
       const { startX, startY, startGeometry } = dragging
 
-        return clampGeometry(currentPlayer, {
-          left: startGeometry.left + (event.clientX - startX),
-          top: startGeometry.top + (event.clientY - startY),
-          width: startGeometry.width,
-          widthRatio: startGeometry.widthRatio,
-          pageZoom: startGeometry.pageZoom
-        })
+      return clampGeometry(currentPlayer, {
+        left: startGeometry.left + (event.clientX - startX),
+        top: startGeometry.top + (event.clientY - startY),
+        width: startGeometry.width,
+        widthRatio: startGeometry.widthRatio,
+        widthRatios: startGeometry.widthRatios,
+        pageZoom: startGeometry.pageZoom
+      })
     }
 
   function startMoveDragging(event) {
@@ -1419,7 +1563,7 @@ function createYouTubeController() {
     syncOverlay(nextGeometry)
 
     if (isNewActivation) {
-      persistGeometry(nextGeometry)
+      persistGeometryImmediate(nextGeometry)
     }
   }
 
@@ -1520,13 +1664,21 @@ function createYouTubeController() {
     globalThis.addEventListener("hashchange", scheduleSync)
     globalThis.addEventListener("popstate", scheduleSync)
     globalThis.visualViewport?.addEventListener("resize", scheduleSync, { passive: true })
+
+    // 页面关闭前立即保存数据（防止防抖延迟导致数据丢失）
+    globalThis.addEventListener("beforeunload", () => {
+      if (currentPlayer && currentGeometry) {
+        persistGeometryImmediate(currentGeometry)
+      }
+    })
   }
 
   ensureStyles()
   ensureOverlay()
   installObservers()
   storage.get((value) => {
-    if ([2, 3, STORAGE_SCHEMA_VERSION].includes(value?.version)) {
+    // 支持版本 2, 3, 4, 5
+    if ([2, 3, 4, 5].includes(value?.version)) {
       savedGeometry = value
     } else {
       savedGeometry = null

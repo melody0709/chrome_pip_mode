@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.1] - 2026-04-20
+
+### Added
+- **Multi-Tier Width Ratio**: Implemented four viewport width tiers (MAX/WIDE/MEDIUM/SMALL) based on screen physical width percentage.
+  - MAX (85%-100%): Full screen mode
+  - WIDE (70%-85%): Wide window mode  
+  - MEDIUM (55%-70%): Medium/split screen mode
+  - SMALL (≤55%): Small window mode
+- **Independent Ratio Memory**: Each tier now maintains its own `widthRatio`, allowing different floating player sizes for different window sizes.
+- **Storage Schema v5**: Upgraded from v4 to v5 to support multi-tier width ratios with automatic migration from v3/v4.
+
+### Changed
+- **Adaptive Width Calculation**: When browser window is resized, the floating player now uses the corresponding tier's `widthRatio` instead of a single global ratio.
+- **Default Ratios**: Set default ratios for each tier (MAX: 20%, WIDE: 22%, MEDIUM: 25%, SMALL: 30%).
+
 ## [1.0.0] - 2026-04-20
 
 ### Changed
