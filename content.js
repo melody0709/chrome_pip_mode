@@ -137,7 +137,8 @@
     return Math.floor(ABSOLUTE_MIN_WIDTH / getPageZoom())
   }
   const MAX_VIEWPORT_RATIO = 0.50
-  const PLAYER_Z_INDEX = 999999
+  // 悬浮窗 z-index（调低至 9999，避免遮挡 Bilibili 评论区图片放大镜/登录弹窗等高层级 Modal）
+  const PLAYER_Z_INDEX = 9999
   const ANCESTOR_OVERFLOW_CLASS = "copilot-floating-ancestor-overflow"
   const ANCESTOR_STACKING_CLASS = "copilot-floating-ancestor-stacking"
   const ancestorSavedStyles = new WeakMap()

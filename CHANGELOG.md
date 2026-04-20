@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.3] - 2026-04-21
+
+### Fixed
+- Lowered floating player z-index from 999999 to 9999 to prevent blocking site-native modals like image viewers in the Bilibili comment section.
+
 ## [1.0.2] - 2026-04-21
 
 ### Changed
