@@ -867,11 +867,25 @@ function createYouTubeController() {
           getMaxWidthForViewport(ratio, viewport)
         )
         const clampedHeight = Math.round(clampedWidth / ratio)
-        const nextLeft = viewport.width - right - clampedWidth
+        // 计算原本右边缘距离的百分比，如果距右边更近，保持右边距离的绝对值不变（仅缩放比例）
+        const isCloserToRight = left > (sourceViewportWidth / 2 - width / 2)
+        
+        let nextLeft
+        if (isCloserToRight) {
+          nextLeft = viewport.width - right - clampedWidth
+        } else {
+          nextLeft = left * zoomRatio
+        }
 
-        // By recalculating nextTop based on the absolute bottom offset,
-        // we ensure that "the height of the small window from the bottom of the browser remains unchanged"
-        const nextTop = viewport.height - bottom - clampedHeight
+        // Check if the player was closer to the top or bottom in the original viewport
+        const isCloserToBottom = top > (sourceViewportHeight / 2 - Math.round(width / ratio) / 2)
+        
+        let nextTop
+        if (isCloserToBottom) {
+          nextTop = viewport.height - bottom - clampedHeight
+        } else {
+          nextTop = top * zoomRatio
+        }
 
         const maxLeft = Math.max(MARGIN, viewport.width - MARGIN - clampedWidth)
         const maxTop = Math.max(MARGIN, viewport.height - MARGIN - clampedHeight)
@@ -913,7 +927,7 @@ function createYouTubeController() {
     }
 
     // 版本 5：直接使用多档位逻辑
-    if (value.version === 5) {
+    if (value.version === 6) {
       const viewportWidth = Number(value.viewportWidth)
       const viewportHeight = Number(value.viewportHeight)
 

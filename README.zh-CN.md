@@ -1,4 +1,4 @@
-# Floating Video Resizer v1.0.3
+# Floating Video Resizer v1.0.2
 
 [English](README.md) | [Changelog](CHANGELOG.md) | [更新日志](CHANGELOG.zh-CN.md)
 

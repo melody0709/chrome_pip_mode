@@ -1,10 +1,5 @@
 # Changelog
 
-## [1.0.3] - 2026-04-21
-
-### Fixed
-- Fixed a critical storage bug where state versions strictly above 5 were incorrectly discarded during the loading phase, leading to lost saved floating positions and recurring unoptimized defaults.
-
 ## [1.0.2] - 2026-04-21
 
 ### Changed
