@@ -795,7 +795,7 @@ function createYouTubeController() {
       return result
     }
 
-    function createResponsiveGeometrySnapshot(player, geometry, viewport = getViewportMetrics(), updateRatio = true) {
+    function createResponsiveGeometrySnapshot(player, geometry, viewport = getViewportMetrics()) {
       const nextGeometry = clampGeometry(player, geometry, viewport)
       const currentTier = getCurrentTier()
 
@@ -808,11 +808,6 @@ function createYouTubeController() {
         wide: Number.isFinite(existingRatios.wide) ? existingRatios.wide : currentRatio,
         medium: Number.isFinite(existingRatios.medium) ? existingRatios.medium : currentRatio,
         small: Number.isFinite(existingRatios.small) ? existingRatios.small : currentRatio
-      }
-
-      // 仅在明确需要更新比例（如用户拖动或缩放浮窗）时，才更新当前档位的 widthRatio
-      if (updateRatio) {
-        widthRatios[currentTier] = currentRatio
       }
 
       return {
@@ -1034,14 +1029,22 @@ function createYouTubeController() {
       ? startGeometry.top + (startGeometry.height - height)
       : startGeometry.top
 
+    const viewport = getViewportMetrics()
+    const currentTier = getCurrentTier()
+    const currentRatio = width / viewport.width
+    const nextWidthRatios = {
+      ...(startGeometry.widthRatios || {}),
+      [currentTier]: currentRatio
+    }
+
     return clampGeometry(currentPlayer, {
       left,
       top,
       width,
-      widthRatio: width / getViewportMetrics().width,
-      widthRatios: startGeometry.widthRatios,
+      widthRatio: currentRatio,
+      widthRatios: nextWidthRatios,
       pageZoom: getPageZoom()
-    })
+    }, viewport)
   }
 
     function computeMoveGeometry(event) {
@@ -1635,7 +1638,7 @@ function createYouTubeController() {
       currentPlayer === player && currentGeometry && viewportChanged
         ? adaptGeometryToViewport(
             player,
-            createResponsiveGeometrySnapshot(player, currentGeometry, lastViewport, false),
+            createResponsiveGeometrySnapshot(player, currentGeometry, lastViewport),
             viewport
           )
         : currentGeometry
@@ -1648,7 +1651,7 @@ function createYouTubeController() {
     applyGeometry(player, geometry)
 
     if (savedGeometry && viewportChanged) {
-      savedGeometry = createResponsiveGeometrySnapshot(player, currentGeometry, viewport, false)
+      savedGeometry = createResponsiveGeometrySnapshot(player, currentGeometry, viewport)
     }
 
     lastViewport = viewport
