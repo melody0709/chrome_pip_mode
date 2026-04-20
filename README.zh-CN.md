@@ -1,6 +1,6 @@
-# Floating Video Resizer
+# Floating Video Resizer v1.0.0
 
-[English](README.md)
+[English](README.md) | [Changelog](CHANGELOG.md)
 
 这是一个 Chrome 扩展，用来增强 Bilibili 和 YouTube 的悬浮视频体验。
 
@@ -8,6 +8,8 @@
 
 - 增强站内自带的小窗播放器，支持四个角拖拽缩放。
 - 支持 YouTube 的迷你播放器。
+- **智能缩放适配**：页面缩放（Ctrl +/-）时保持物理尺寸，视窗拉伸时保持相对比例。
+- **层级自动穿透**：递归修改父级 `z-index`，确保 Bilibili 小窗不被侧边栏（客服、顶部等）遮挡。
 
 ## 主要特性
 

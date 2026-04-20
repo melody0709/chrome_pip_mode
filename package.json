@@ -1,0 +1,7 @@
+{
+  "name": "floating-video-resizer",
+  "version": "1.0.0",
+  "devDependencies": {
+    "@types/chrome": "^0.1.40"
+  }
+}

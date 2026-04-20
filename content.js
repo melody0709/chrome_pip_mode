@@ -13,7 +13,7 @@
   const STYLE_ID = "copilot-floating-player-style"
   const HANDLE_CLASS = "copilot-floating-player-handle"
   const STORAGE_PREFIX = "floatingVideoState:"
-  const STORAGE_SCHEMA_VERSION = 3
+  const STORAGE_SCHEMA_VERSION = 4
   const MOVE_ZONE_CLASS = "copilot-floating-player-move-zone"
   const CLOSE_CLASS = "copilot-floating-player-close"
   const MOVE_DRAG_THRESHOLD = 6
@@ -60,8 +60,55 @@
   const MARGIN = 0
   const MIN_WIDTH = 320
   const ABSOLUTE_MIN_WIDTH = 320
-  const MAX_VIEWPORT_RATIO = 0.4
+  
+  function getPageZoom() {
+    return globalThis.devicePixelRatio || 1
+  }
+
+  function getEffectiveMinWidth() {
+    return Math.floor(ABSOLUTE_MIN_WIDTH / getPageZoom())
+  }
+  const MAX_VIEWPORT_RATIO = 0.38
   const PLAYER_Z_INDEX = 999999
+  const ANCESTOR_OVERFLOW_CLASS = "copilot-floating-ancestor-overflow"
+  const ANCESTOR_STACKING_CLASS = "copilot-floating-ancestor-stacking"
+  const ancestorSavedStyles = new WeakMap()
+
+  function setAncestorsOverflowVisible(player) {
+    let el = player.parentElement
+    while (el && el !== document.body) {
+      el.classList.add(ANCESTOR_OVERFLOW_CLASS)
+
+      const computed = getComputedStyle(el)
+      const saved = {
+        position: el.style.position,
+        zIndex: el.style.zIndex
+      }
+      ancestorSavedStyles.set(el, saved)
+
+      if (computed.position === "static") {
+        el.classList.add(ANCESTOR_STACKING_CLASS)
+      }
+      el.style.zIndex = String(PLAYER_Z_INDEX)
+
+      el = el.parentElement
+    }
+  }
+
+  function clearAncestorsOverflowVisible() {
+    document.querySelectorAll(`.${ANCESTOR_OVERFLOW_CLASS}`).forEach(el => {
+      el.classList.remove(ANCESTOR_OVERFLOW_CLASS)
+      el.classList.remove(ANCESTOR_STACKING_CLASS)
+
+      const saved = ancestorSavedStyles.get(el)
+      if (saved) {
+        el.style.position = saved.position
+        el.style.zIndex = saved.zIndex
+        ancestorSavedStyles.delete(el)
+      }
+    })
+  }
+
   const DEFAULT_ASPECT_RATIO = 16 / 9
   const site = getSiteController()
 
@@ -103,44 +150,6 @@ function createYouTubeController() {
     const SCROLL_THRESHOLD = 256
     let originalRect = null
     let manuallyClosed = false
-    const ANCESTOR_OVERFLOW_CLASS = "copilot-floating-ancestor-overflow"
-    const ANCESTOR_STACKING_CLASS = "copilot-floating-ancestor-stacking"
-    const ancestorSavedStyles = new WeakMap()
-
-    function setAncestorsOverflowVisible(player) {
-      let el = player.parentElement
-      while (el && el !== document.body) {
-        el.classList.add(ANCESTOR_OVERFLOW_CLASS)
-
-        const computed = getComputedStyle(el)
-        const saved = {
-          position: el.style.position,
-          zIndex: el.style.zIndex
-        }
-        ancestorSavedStyles.set(el, saved)
-
-        if (computed.position === "static") {
-          el.classList.add(ANCESTOR_STACKING_CLASS)
-        }
-        el.style.zIndex = String(PLAYER_Z_INDEX)
-
-        el = el.parentElement
-      }
-    }
-
-    function clearAncestorsOverflowVisible() {
-      document.querySelectorAll(`.${ANCESTOR_OVERFLOW_CLASS}`).forEach(el => {
-        el.classList.remove(ANCESTOR_OVERFLOW_CLASS)
-        el.classList.remove(ANCESTOR_STACKING_CLASS)
-
-        const saved = ancestorSavedStyles.get(el)
-        if (saved) {
-          el.style.position = saved.position
-          el.style.zIndex = saved.zIndex
-          ancestorSavedStyles.delete(el)
-        }
-      })
-    }
 
     return {
       id: "youtube",
@@ -237,9 +246,9 @@ function createYouTubeController() {
       const data = globalThis.localStorage.getItem("floatingVideoState:youtube")
       if (data) {
         const value = JSON.parse(data)
-        if (value?.version === STORAGE_SCHEMA_VERSION && Number.isFinite(value.left) && Number.isFinite(value.top) && Number.isFinite(value.width)) {
-          return { left: value.left, top: value.top, width: value.width }
-        }
+          if ((value?.version === STORAGE_SCHEMA_VERSION || value?.version === 3) && Number.isFinite(value.left) && Number.isFinite(value.top) && Number.isFinite(value.width)) {
+            return { left: value.left, top: value.top, width: value.width, widthRatio: value.widthRatio, pageZoom: value.pageZoom }
+          }
       }
     } catch {}
     return null
@@ -290,6 +299,12 @@ function createYouTubeController() {
         })
       },
       applyGeometry(player, geometry) {
+        const isNewActivation = !player.classList.contains(BILIBILI_CLASS)
+
+        if (isNewActivation) {
+          setAncestorsOverflowVisible(player)
+        }
+
         rememberStyles(player, PLAYER_STYLE_PROPS)
         player.classList.add(ACTIVE_CLASS, BILIBILI_CLASS)
         player.style.position = "fixed"
@@ -308,6 +323,7 @@ function createYouTubeController() {
         clearStyles(player, PLAYER_STYLE_PROPS)
         forgetStyles(player)
         forgetDefaultGeometry(player)
+        clearAncestorsOverflowVisible()
       },
       close(player) {
         const miniWindow = document.querySelector(".mini-player-window.fixed-sidenav-storage-item")
@@ -651,123 +667,154 @@ function createYouTubeController() {
     return leftViewport.width === rightViewport.width && leftViewport.height === rightViewport.height
   }
 
-  function getMaxWidthForViewport(ratio, viewport = getViewportMetrics()) {
-    const maxWidth = Math.floor(
-      Math.min(
-        viewport.width - MARGIN * 2,
-        (viewport.height - MARGIN * 2) * ratio,
-        viewport.width * MAX_VIEWPORT_RATIO
+    function getMaxWidthForViewport(ratio, viewport = getViewportMetrics()) {
+      const maxWidth = Math.floor(
+        Math.min(
+          viewport.width - MARGIN * 2,
+          (viewport.height - MARGIN * 2) * ratio,
+          viewport.width * MAX_VIEWPORT_RATIO
+        )
       )
-    )
 
-    return Math.max(ABSOLUTE_MIN_WIDTH, maxWidth)
-  }
-
-  function getMinWidthForViewport(ratio, viewport = getViewportMetrics()) {
-    return Math.min(MIN_WIDTH, getMaxWidthForViewport(ratio, viewport))
-  }
-
-  function clampGeometry(player, geometry, viewport = getViewportMetrics()) {
-    const ratio = getAspectRatio(player)
-    const width = clamp(
-      Math.round(geometry.width),
-      getMinWidthForViewport(ratio, viewport),
-      getMaxWidthForViewport(ratio, viewport)
-    )
-    const height = Math.round(width / ratio)
-    const maxLeft = Math.max(MARGIN, viewport.width - MARGIN - width)
-    const maxTop = Math.max(MARGIN, viewport.height - MARGIN - height)
-
-    return {
-      left: clamp(Math.round(geometry.left), MARGIN, maxLeft),
-      top: clamp(Math.round(geometry.top), MARGIN, maxTop),
-      width,
-      height
+      return Math.max(getEffectiveMinWidth(), maxWidth)
     }
-  }
 
-  function createResponsiveGeometrySnapshot(player, geometry, viewport = getViewportMetrics()) {
-    const nextGeometry = clampGeometry(player, geometry, viewport)
-
-    return {
-      version: STORAGE_SCHEMA_VERSION,
-      left: nextGeometry.left,
-      top: nextGeometry.top,
-      width: nextGeometry.width,
-      viewportWidth: viewport.width,
-      viewportHeight: viewport.height,
-      right: Math.max(MARGIN, viewport.width - nextGeometry.left - nextGeometry.width),
-      bottom: Math.max(MARGIN, viewport.height - nextGeometry.top - nextGeometry.height),
-      widthRatio: nextGeometry.width / viewport.width
+    function getMinWidthForViewport(ratio, viewport = getViewportMetrics()) {
+      return Math.min(getEffectiveMinWidth(), getMaxWidthForViewport(ratio, viewport))
     }
-  }
 
-  function adaptGeometryToViewport(player, value, viewport = getViewportMetrics()) {
-    const ratio = getAspectRatio(player)
-    const left = Number(value.left)
-    const top = Number(value.top)
-    const width = Number(value.width)
-    const sourceViewportWidth = Number(value.viewportWidth)
-    const sourceViewportHeight = Number(value.viewportHeight)
-    const right = Number.isFinite(Number(value.right))
-      ? Number(value.right)
-      : sourceViewportWidth - left - width
-    const bottom = Number.isFinite(Number(value.bottom))
-      ? Number(value.bottom)
-      : sourceViewportHeight - top - Math.round(width / ratio)
-    const widthRatio = Number.isFinite(Number(value.widthRatio))
-      ? Number(value.widthRatio)
-      : sourceViewportWidth > 0
-        ? width / sourceViewportWidth
-        : 0
-    const nextWidth = widthRatio > 0 ? viewport.width * widthRatio : width
-    const clampedWidth = clamp(
-      Math.round(nextWidth),
-      getMinWidthForViewport(ratio, viewport),
-      getMaxWidthForViewport(ratio, viewport)
-    )
-    const clampedHeight = Math.round(clampedWidth / ratio)
-    const nextLeft = viewport.width - right - clampedWidth
-    const nextTop = viewport.height - bottom - clampedHeight
-    const maxLeft = Math.max(MARGIN, viewport.width - MARGIN - clampedWidth)
-    const maxTop = Math.max(MARGIN, viewport.height - MARGIN - clampedHeight)
+    function clampGeometry(player, geometry, viewport = getViewportMetrics()) {
+      const ratio = getAspectRatio(player)
+      const width = clamp(
+        Math.round(geometry.width),
+        getMinWidthForViewport(ratio, viewport),
+        getMaxWidthForViewport(ratio, viewport)
+      )
+      const height = Math.round(width / ratio)
+      const maxLeft = Math.max(MARGIN, viewport.width - MARGIN - width)
+      const maxTop = Math.max(MARGIN, viewport.height - MARGIN - height)
 
-    return {
-      left: clamp(Math.round(nextLeft), MARGIN, maxLeft),
-      top: clamp(Math.round(nextTop), MARGIN, maxTop),
-      width: clampedWidth,
-      height: clampedHeight
+        const result = {
+          left: clamp(Math.round(geometry.left), MARGIN, maxLeft),
+          top: clamp(Math.round(geometry.top), MARGIN, maxTop),
+          width,
+          height
+        }
+        
+        if (Number.isFinite(Number(geometry.widthRatio))) {
+          result.widthRatio = Number(geometry.widthRatio)
+        }
+        
+        if (Number.isFinite(Number(geometry.pageZoom))) {
+          result.pageZoom = Number(geometry.pageZoom)
+        } else {
+          result.pageZoom = getPageZoom()
+        }
+        
+        return result
     }
-  }
+
+    function createResponsiveGeometrySnapshot(player, geometry, viewport = getViewportMetrics()) {
+      const nextGeometry = clampGeometry(player, geometry, viewport)
+
+      return {
+        version: STORAGE_SCHEMA_VERSION,
+        left: nextGeometry.left,
+        top: nextGeometry.top,
+        width: nextGeometry.width,
+        viewportWidth: viewport.width,
+        viewportHeight: viewport.height,
+        right: Math.max(MARGIN, viewport.width - nextGeometry.left - nextGeometry.width),
+          bottom: Math.max(MARGIN, viewport.height - nextGeometry.top - nextGeometry.height),
+          widthRatio: Number.isFinite(Number(geometry.widthRatio)) 
+            ? Number(geometry.widthRatio) 
+            : nextGeometry.width / viewport.width,
+          pageZoom: Number.isFinite(Number(geometry.pageZoom)) ? Number(geometry.pageZoom) : getPageZoom()
+        }
+      }
+
+      function adaptGeometryToViewport(player, value, viewport = getViewportMetrics()) {
+        const ratio = getAspectRatio(player)
+        const left = Number(value.left)
+        const top = Number(value.top)
+        const width = Number(value.width)
+        const sourceViewportWidth = Number(value.viewportWidth)
+        const sourceViewportHeight = Number(value.viewportHeight)
+        
+        const oldZoom = Number.isFinite(Number(value.pageZoom)) ? Number(value.pageZoom) : getPageZoom()
+        const currentZoom = getPageZoom()
+        const zoomRatio = oldZoom / currentZoom
+
+        let right = Number.isFinite(Number(value.right))
+          ? Number(value.right)
+          : sourceViewportWidth - left - width
+        let bottom = Number.isFinite(Number(value.bottom))
+          ? Number(value.bottom)
+          : sourceViewportHeight - top - Math.round(width / ratio)
+
+        // Scale gaps to maintain absolute physical distance during zoom
+        right *= zoomRatio
+        bottom *= zoomRatio
+
+        const widthRatio = Number.isFinite(Number(value.widthRatio))
+          ? Number(value.widthRatio)
+          : sourceViewportWidth > 0
+            ? width / sourceViewportWidth
+            : 0
+
+        const nextWidth = widthRatio > 0 ? viewport.width * widthRatio : width * zoomRatio
+
+        const clampedWidth = clamp(
+          Math.round(nextWidth),
+          getMinWidthForViewport(ratio, viewport),
+          getMaxWidthForViewport(ratio, viewport)
+        )
+        const clampedHeight = Math.round(clampedWidth / ratio)
+        const nextLeft = viewport.width - right - clampedWidth
+        
+        // By recalculating nextTop based on the absolute bottom offset, 
+        // we ensure that "the height of the small window from the bottom of the browser remains unchanged"
+        const nextTop = viewport.height - bottom - clampedHeight
+        
+        const maxLeft = Math.max(MARGIN, viewport.width - MARGIN - clampedWidth)
+        const maxTop = Math.max(MARGIN, viewport.height - MARGIN - clampedHeight)
+
+        const finalWidthRatio = Number.isFinite(widthRatio) ? widthRatio : (width / viewport.width)
+        return clampGeometry(player, { left: nextLeft, top: nextTop, width: clampedWidth, widthRatio: finalWidthRatio, pageZoom: currentZoom }, viewport)
+      }
 
   function sanitizeSavedGeometry(player, value, viewport = getViewportMetrics()) {
     if (!value || typeof value !== "object") {
       return null
     }
 
-    if (![2, STORAGE_SCHEMA_VERSION].includes(value.version)) {
-      return null
-    }
+      if (![2, 3, STORAGE_SCHEMA_VERSION].includes(value.version)) {
+        return null
+      }
 
     const left = Number(value.left)
-    const top = Number(value.top)
-    const width = Number(value.width)
+      const top = Number(value.top)
+      const width = Number(value.width)
+      const widthRatio = Number(value.widthRatio)
+      const pageZoom = Number(value.pageZoom)
 
-    if (!Number.isFinite(left) || !Number.isFinite(top) || !Number.isFinite(width)) {
-      return null
-    }
-
-    if (value.version === STORAGE_SCHEMA_VERSION) {
-      const viewportWidth = Number(value.viewportWidth)
-      const viewportHeight = Number(value.viewportHeight)
-
-      if (Number.isFinite(viewportWidth) && Number.isFinite(viewportHeight)) {
-        return adaptGeometryToViewport(player, value, viewport)
+      if (!Number.isFinite(left) || !Number.isFinite(top) || !Number.isFinite(width)) {
+        return null
       }
-    }
 
-    return clampGeometry(player, { left, top, width }, viewport)
-  }
+      if (value.version === STORAGE_SCHEMA_VERSION || value.version === 3) {
+        const viewportWidth = Number(value.viewportWidth)
+        const viewportHeight = Number(value.viewportHeight)
+
+        if (Number.isFinite(viewportWidth) && Number.isFinite(viewportHeight)) {
+          return adaptGeometryToViewport(player, value, viewport)
+        }
+      }
+
+      const finalWidthRatio = Number.isFinite(widthRatio) ? widthRatio : (width / viewport.width)
+      const finalPageZoom = Number.isFinite(pageZoom) ? pageZoom : getPageZoom()
+      return clampGeometry(player, { left, top, width, widthRatio: finalWidthRatio, pageZoom: finalPageZoom }, viewport)
+    }
 
   function persistGeometry(geometry) {
     if (!currentPlayer) {
@@ -832,22 +879,24 @@ function createYouTubeController() {
     const left = corner.endsWith("left")
       ? startGeometry.left + (startGeometry.width - width)
       : startGeometry.left
-    const top = corner.startsWith("top")
-      ? startGeometry.top + (startGeometry.height - height)
-      : startGeometry.top
+      const top = corner.startsWith("top")
+        ? startGeometry.top + (startGeometry.height - height)
+        : startGeometry.top
 
-    return clampGeometry(currentPlayer, { left, top, width })
-  }
+      return clampGeometry(currentPlayer, { left, top, width, widthRatio: width / getViewportMetrics().width, pageZoom: getPageZoom() })
+    }
 
-  function computeMoveGeometry(event) {
-    const { startX, startY, startGeometry } = dragging
+    function computeMoveGeometry(event) {
+      const { startX, startY, startGeometry } = dragging
 
-    return clampGeometry(currentPlayer, {
-      left: startGeometry.left + (event.clientX - startX),
-      top: startGeometry.top + (event.clientY - startY),
-      width: startGeometry.width
-    })
-  }
+        return clampGeometry(currentPlayer, {
+          left: startGeometry.left + (event.clientX - startX),
+          top: startGeometry.top + (event.clientY - startY),
+          width: startGeometry.width,
+          widthRatio: startGeometry.widthRatio,
+          pageZoom: startGeometry.pageZoom
+        })
+    }
 
   function startMoveDragging(event) {
     if (!pendingMove || !currentPlayer || pendingMove.player !== currentPlayer) {
@@ -1280,19 +1329,27 @@ function createYouTubeController() {
 
       .${BILIBILI_CLASS}, .${YOUTUBE_CLASS} {
         isolation: isolate;
+        min-width: 0 !important;
+        min-height: 0 !important;
       }
 
-      .${BILIBILI_CLASS} .bpx-player-primary-area,
-      .${BILIBILI_CLASS} .bpx-player-video-area,
-      .${BILIBILI_CLASS} .bpx-player-video-wrap,
-      .${BILIBILI_CLASS} .bpx-player-video-perch,
-      .${BILIBILI_CLASS} .bpx-player-video-wrap > div,
-      .${BILIBILI_CLASS} video {
-        width: 100% !important;
-        height: 100% !important;
-        max-width: none !important;
-        max-height: none !important;
+      .bpx-player-container.${BILIBILI_CLASS} {
+        z-index: ${PLAYER_Z_INDEX + 1} !important;
       }
+
+        .${BILIBILI_CLASS} .bpx-player-primary-area,
+        .${BILIBILI_CLASS} .bpx-player-video-area,
+        .${BILIBILI_CLASS} .bpx-player-video-wrap,
+        .${BILIBILI_CLASS} .bpx-player-video-perch,
+        .${BILIBILI_CLASS} .bpx-player-video-wrap > div,
+        .${BILIBILI_CLASS} video {
+          width: 100% !important;
+          height: 100% !important;
+          max-width: none !important;
+          max-height: none !important;
+          min-width: 0 !important;
+          min-height: 0 !important;
+        }
 
 #movie_player.${YOUTUBE_CLASS} {
         position: fixed !important;
@@ -1304,17 +1361,21 @@ function createYouTubeController() {
         will-change: transform, width, height !important;
       }
 
-      #movie_player.${YOUTUBE_CLASS} .html5-video-container {
-        width: 100% !important;
-        height: 100% !important;
-      }
+        #movie_player.${YOUTUBE_CLASS} .html5-video-container {
+          width: 100% !important;
+          height: 100% !important;
+          min-width: 0 !important;
+          min-height: 0 !important;
+        }
 
-      #movie_player.${YOUTUBE_CLASS} video {
-        width: 100% !important;
-        height: 100% !important;
-        max-width: none !important;
-        max-height: none !important;
-        top: 0 !important;
+        #movie_player.${YOUTUBE_CLASS} video {
+          width: 100% !important;
+          height: 100% !important;
+          max-width: none !important;
+          max-height: none !important;
+          min-width: 0 !important;
+          min-height: 0 !important;
+          top: 0 !important;
         left: 0 !important;
         object-fit: contain !important;
       }
@@ -1465,7 +1526,7 @@ function createYouTubeController() {
   ensureOverlay()
   installObservers()
   storage.get((value) => {
-    if ([2, STORAGE_SCHEMA_VERSION].includes(value?.version)) {
+    if ([2, 3, STORAGE_SCHEMA_VERSION].includes(value?.version)) {
       savedGeometry = value
     } else {
       savedGeometry = null
