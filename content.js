@@ -795,7 +795,7 @@ function createYouTubeController() {
       return result
     }
 
-    function createResponsiveGeometrySnapshot(player, geometry, viewport = getViewportMetrics()) {
+    function createResponsiveGeometrySnapshot(player, geometry, viewport = getViewportMetrics(), updateRatio = true) {
       const nextGeometry = clampGeometry(player, geometry, viewport)
       const currentTier = getCurrentTier()
 
@@ -810,8 +810,10 @@ function createYouTubeController() {
         small: Number.isFinite(existingRatios.small) ? existingRatios.small : currentRatio
       }
 
-      // 更新当前档位的 widthRatio
-      widthRatios[currentTier] = currentRatio
+      // 仅在明确需要更新比例（如用户拖动或缩放浮窗）时，才更新当前档位的 widthRatio
+      if (updateRatio) {
+        widthRatios[currentTier] = currentRatio
+      }
 
       return {
         version: STORAGE_SCHEMA_VERSION,
@@ -1633,7 +1635,7 @@ function createYouTubeController() {
       currentPlayer === player && currentGeometry && viewportChanged
         ? adaptGeometryToViewport(
             player,
-            createResponsiveGeometrySnapshot(player, currentGeometry, lastViewport),
+            createResponsiveGeometrySnapshot(player, currentGeometry, lastViewport, false),
             viewport
           )
         : currentGeometry
@@ -1646,7 +1648,7 @@ function createYouTubeController() {
     applyGeometry(player, geometry)
 
     if (savedGeometry && viewportChanged) {
-      savedGeometry = createResponsiveGeometrySnapshot(player, currentGeometry, viewport)
+      savedGeometry = createResponsiveGeometrySnapshot(player, currentGeometry, viewport, false)
     }
 
     lastViewport = viewport
