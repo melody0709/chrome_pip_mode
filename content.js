@@ -314,8 +314,8 @@ function createYouTubeController() {
       const data = globalThis.localStorage.getItem("floatingVideoState:youtube")
       if (data) {
         const value = JSON.parse(data)
-        // 支持版本 3, 4, 5
-        if ([3, 4, 5].includes(value?.version) && Number.isFinite(value.left) && Number.isFinite(value.top) && Number.isFinite(value.width)) {
+        // 支持版本 3, 4, 5, 6
+        if ([3, 4, 5, 6].includes(value?.version) && Number.isFinite(value.left) && Number.isFinite(value.top) && Number.isFinite(value.width)) {
           return {
             left: value.left,
             top: value.top,
@@ -899,8 +899,8 @@ function createYouTubeController() {
       return null
     }
 
-    // 支持版本 3, 4, 5
-    if (![2, 3, 4, 5].includes(value.version)) {
+    // 支持版本 3, 4, 5, 6
+    if (![2, 3, 4, 5, 6].includes(value.version)) {
       return null
     }
 
@@ -1676,8 +1676,8 @@ function createYouTubeController() {
   ensureOverlay()
   installObservers()
   storage.get((value) => {
-    // 支持版本 2, 3, 4, 5
-    if ([2, 3, 4, 5].includes(value?.version)) {
+    // 支持版本 2, 3, 4, 5, 6
+    if ([2, 3, 4, 5, 6].includes(value?.version)) {
       savedGeometry = value
     } else {
       savedGeometry = null
