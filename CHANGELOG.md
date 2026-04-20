@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.2] - 2026-04-21
+
+### Changed
+- Fixed viewport tier detection by using absolute window physical dimensions to avoid system scaling/DPI zoom issues
+- Updated MAX_VIEWPORT_RATIO from 0.38 to 0.50
+- Refined tiered thresholds for better multiscreen behaviors (MEDIUM is now 50%-70%)
+- Updated storage schema to v6 with automated state migration
+
 All notable changes to this project will be documented in this file.
 
 ## [1.0.1] - 2026-04-20

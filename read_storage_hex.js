@@ -81,7 +81,7 @@ function findDataInBinary(filePath) {
                 const obj = JSON.parse(jsonStr);
 
                 // 检查是否是有效的浮窗数据
-                if (obj.version === 5 && obj.viewportWidth) {
+                if ((obj.version === 5 || obj.version === 6) && obj.viewportWidth) {
                     // 去重
                     const key = `${obj.viewportWidth}-${obj.width}-${obj.left}`;
                     if (!seen.has(key)) {
@@ -147,7 +147,9 @@ if (fs.existsSync(logPath)) {
             console.log(`档位: ${tier}`);
             console.log(`视口: ${record.viewportWidth} x ${record.viewportHeight}`);
             console.log(`浮窗: 宽=${record.width}, 高=${record.height}, 左=${record.left}, 上=${record.top}`);
-            console.log(`当前档位比例: ${record.widthRatio ? (record.widthRatio * 100).toFixed(2) + '%' : 'N/A'}`);
+            const currentRatio = record.widthRatio || (widthRatios[record.activeTier] || 'N/A');
+            const ratioDisplay = currentRatio !== 'N/A' ? (currentRatio * 100).toFixed(2) + '%' : 'N/A';
+            console.log(`当前档位比例: ${ratioDisplay}`);
 
             if (Object.keys(widthRatios).length > 0) {
                 console.log('已保存的档位比例:');

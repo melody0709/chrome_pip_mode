@@ -13,14 +13,14 @@
   const STYLE_ID = "copilot-floating-player-style"
   const HANDLE_CLASS = "copilot-floating-player-handle"
   const STORAGE_PREFIX = "floatingVideoState:"
-  const STORAGE_SCHEMA_VERSION = 5
+  const STORAGE_SCHEMA_VERSION = 6
 
-  // 视窗档位配置（基于屏幕物理宽度比例）
+  // 视窗档位配置（基于窗口宽度与屏幕可用宽度的比例）
   const VIEWPORT_TIERS = {
     MAX: { min: 0.85, max: 1.00, key: 'max' },    // 大/全屏: 85%-100%
     WIDE: { min: 0.70, max: 0.85, key: 'wide' },   // 宽屏: 70%-85%
-    MEDIUM: { min: 0.55, max: 0.70, key: 'medium' }, // 中/分屏: 55%-70%
-    SMALL: { min: 0.00, max: 0.55, key: 'small' }  // 小/挂件: ≤55%
+    MEDIUM: { min: 0.50, max: 0.70, key: 'medium' }, // 中/分屏: 50%-70% (半屏通常在 50% 左右)
+    SMALL: { min: 0.00, max: 0.50, key: 'small' }  // 小/挂件: ≤50%
   }
 
   // 默认各档位 widthRatio
@@ -32,8 +32,15 @@
   }
 
   // 获取当前档位
-  function getCurrentTier(viewportWidth, screenWidth) {
-    const ratio = viewportWidth / screenWidth
+  // 使用浏览器物理窗口和屏幕大小比例，排除页面缩放（Zoom）和系统缩放（DPI）的影响
+  function getCurrentTier() {
+    // window.outerWidth: 浏览器外框宽度（逻辑像素，不受页面缩放影响）
+    // screen.availWidth: 屏幕可用宽度（逻辑像素，不受页面缩放影响）
+    // 这种计算方式可以完美避开 devicePixelRatio 带来的缩放干扰
+    const windowWidth = globalThis.window?.outerWidth || globalThis.window?.innerWidth || 1024
+    const screenWidth = globalThis.screen?.availWidth || globalThis.screen?.width || windowWidth
+
+    const ratio = windowWidth / screenWidth
     if (ratio >= VIEWPORT_TIERS.MAX.min) return 'max'
     if (ratio >= VIEWPORT_TIERS.WIDE.min) return 'wide'
     if (ratio >= VIEWPORT_TIERS.MEDIUM.min) return 'medium'
@@ -48,22 +55,21 @@
     return fallbackRatio
   }
 
-  // 获取屏幕宽度（优先使用物理屏幕宽度）
-  function getScreenWidth() {
-    if (globalThis.screen?.width) {
-      return globalThis.screen.width
-    }
-    return getViewportMetrics().width
-  }
-
-  // 从版本 4 迁移到版本 5
-  function migrateV4ToV5(value, viewport) {
+  // 从版本 4/5 迁移到版本 6
+  function migrateToV6(value, viewport) {
     const singleRatio = value.widthRatio || (value.width / value.viewportWidth) || 0.20
-    const screenWidth = getScreenWidth()
-    const currentTier = getCurrentTier(viewport.width, screenWidth)
+    const currentTier = getCurrentTier()
+    
+    // 如果 value 本身就是版本 5，那么可能已经有 widthRatios 了
+    const newWidthRatios = value.widthRatios || {
+      max: singleRatio,
+      wide: singleRatio,
+      medium: singleRatio,
+      small: singleRatio
+    }
 
     return {
-      version: 5,
+      version: 6,
       left: value.left,
       top: value.top,
       width: value.width,
@@ -72,12 +78,7 @@
       right: value.right,
       bottom: value.bottom,
       pageZoom: value.pageZoom,
-      widthRatios: {
-        max: singleRatio,
-        wide: singleRatio,
-        medium: singleRatio,
-        small: singleRatio
-      },
+      widthRatios: newWidthRatios,
       activeTier: currentTier
     }
   }
@@ -135,7 +136,7 @@
   function getEffectiveMinWidth() {
     return Math.floor(ABSOLUTE_MIN_WIDTH / getPageZoom())
   }
-  const MAX_VIEWPORT_RATIO = 0.38
+  const MAX_VIEWPORT_RATIO = 0.50
   const PLAYER_Z_INDEX = 999999
   const ANCESTOR_OVERFLOW_CLASS = "copilot-floating-ancestor-overflow"
   const ANCESTOR_STACKING_CLASS = "copilot-floating-ancestor-stacking"
@@ -796,8 +797,7 @@ function createYouTubeController() {
 
     function createResponsiveGeometrySnapshot(player, geometry, viewport = getViewportMetrics()) {
       const nextGeometry = clampGeometry(player, geometry, viewport)
-      const screenWidth = getScreenWidth()
-      const currentTier = getCurrentTier(viewport.width, screenWidth)
+      const currentTier = getCurrentTier()
 
       // 继承或初始化各档位的 widthRatios
       const existingRatios = geometry.widthRatios || {}
@@ -852,8 +852,7 @@ function createYouTubeController() {
         bottom *= zoomRatio
 
         // 获取当前档位
-        const screenWidth = getScreenWidth()
-        const currentTier = getCurrentTier(viewport.width, screenWidth)
+        const currentTier = getCurrentTier()
 
         // 获取当前档位的 widthRatio（支持多档位或单档位）
         const fallbackRatio = sourceViewportWidth > 0 ? width / sourceViewportWidth : 0.20
@@ -923,9 +922,9 @@ function createYouTubeController() {
       }
     }
 
-    // 版本 3/4：迁移到版本 5
-    if (value.version === 3 || value.version === 4) {
-      const migratedValue = migrateV4ToV5(value, viewport)
+    // 版本 3/4/5：迁移到版本 6
+    if (value.version === 3 || value.version === 4 || value.version === 5) {
+      const migratedValue = migrateToV6(value, viewport)
       return adaptGeometryToViewport(player, migratedValue, viewport)
     }
 
