@@ -948,6 +948,18 @@ function createYouTubeController() {
     return clampGeometry(player, { left, top, width, widthRatio: finalWidthRatio, pageZoom: finalPageZoom }, viewport)
   }
 
+  // 防抖函数
+  function debounce(fn, delay) {
+    let timer = null
+    return function (...args) {
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(() => {
+        fn.apply(this, args)
+        timer = null
+      }, delay)
+    }
+  }
+
   // 立即执行的持久化（用于需要立即保存的场景）
   function persistGeometryImmediate(geometry) {
     if (!currentPlayer) {
@@ -956,6 +968,9 @@ function createYouTubeController() {
     savedGeometry = createResponsiveGeometrySnapshot(currentPlayer, geometry)
     storage.set(savedGeometry)
   }
+
+  // 防抖持久化（用于频繁触发的场景，如拖拽）
+  const persistGeometry = debounce(persistGeometryImmediate, 500)
 
   function hideOverlay() {
     if (!overlay) {
@@ -1669,15 +1684,12 @@ function createYouTubeController() {
     globalThis.addEventListener("popstate", scheduleSync)
     globalThis.visualViewport?.addEventListener("resize", scheduleSync, { passive: true })
 
-    // 页面关闭/隐藏前立即保存数据（适配现代浏览器 BFCache）
-    const saveOnExit = () => {
+    // 页面关闭前立即保存数据（防止防抖延迟导致数据丢失）
+    globalThis.addEventListener("beforeunload", () => {
       if (currentPlayer && currentGeometry) {
         persistGeometryImmediate(currentGeometry)
       }
-    }
-    
-    globalThis.addEventListener("beforeunload", saveOnExit)
-    globalThis.addEventListener("pagehide", saveOnExit)
+    })
   }
 
   ensureStyles()

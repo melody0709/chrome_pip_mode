@@ -29,6 +29,9 @@ cmd /c 'start "" "C:\Program Files\Google\Chrome\Application\chrome.exe" --remot
 - **Storage:** Uses `chrome.storage.local` with `STORAGE_SCHEMA_VERSION`. Increment this when changing geometry defaults to invalidate old user state.
 - **Cleanup:** On Bilibili, clear extension-managed styles instead of restoring native offsets.
 
+##
+- 浮窗记住离窗口底部高度,不随放大缩小而变化,也不随拉伸窗口而变化
+  
 ## 踩坑规则
 
 > AI 在完成重大修改或解决复杂报错后，可追加规则。
