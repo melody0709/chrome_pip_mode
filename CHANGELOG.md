@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.4] - 2026-04-28
+
+### Fixed
+- Stabilized Bilibili floating player geometry during rapid page zoom changes, including repeated 150%-500% zoom cycles.
+- Preserved physical player size while page zoom changes by scaling from the previous geometry instead of recomputing from viewport ratio mid-zoom.
+- Kept bottom/right anchoring stable by applying zoom scaling only when `devicePixelRatio` changes, while preserving existing resize behavior for normal window changes.
+- Prevented transient deactivate/reactivate cycles during rapid Chrome zoom from overwriting saved geometry with intermediate clamped frames.
+
+### Changed
+- Updated Chrome DevTools MCP testing notes to use `chrome-devtools-mcp`, the logged-in Bilibili profile, and physical-size validation (`height * devicePixelRatio`).
+
 ## [1.0.3] - 2026-04-21
 
 ### Fixed

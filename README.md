@@ -1,4 +1,4 @@
-# Floating Video Resizer v1.0.3
+# Floating Video Resizer v1.0.4
 
 [简体中文说明](README.zh-CN.md) | [Changelog](CHANGELOG.md) | [更新日志](CHANGELOG.zh-CN.md)
 
@@ -9,6 +9,7 @@ This Chrome extension improves floating video behavior on Bilibili and YouTube.
 - Enhances the site's built-in floating player and makes it resizable from all four corners.
 - Supports YouTube's miniplayer (triggered by scrolling or native button).
 - **Intelligent Scaling**: Maintains physical size during page zoom and relative ratio during window resizing.
+- **Stable High-Zoom Geometry**: Handles rapid 150%-500% zoom changes without accumulating size loss or bottom-edge drift.
 - **Multi-Tier Width Ratio**: Supports four viewport width tiers (MAX/WIDE/MEDIUM/SMALL), each with independent width ratio memory for optimal viewing experience across different window sizes.
 - **Z-Index Correction**: Pierces through site-specific layout constraints (like Bilibili's side nav) to ensure the player is always on top.
 
@@ -41,6 +42,8 @@ This Chrome extension improves floating video behavior on Bilibili and YouTube.
 ## MCP Test Setup
 
 - Preferred Chrome DevTools MCP connection: `--browser-url=http://localhost:9222`
+- Use the logged-in `D:\Chrome_MCP_Data` / `Profile 1` profile for Bilibili regression testing.
+- When validating page zoom, compare physical size (`element height * devicePixelRatio`) rather than CSS pixel height alone.
 - Preferred test browser launch on this machine:
 
 ```powershell

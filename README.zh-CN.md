@@ -1,4 +1,4 @@
-# Floating Video Resizer v1.0.3
+# Floating Video Resizer v1.0.4
 
 [English](README.md) | [Changelog](CHANGELOG.md) | [更新日志](CHANGELOG.zh-CN.md)
 
@@ -9,6 +9,7 @@
 - 增强站内自带的小窗播放器，支持四个角拖拽缩放。
 - 支持 YouTube 的迷你播放器。
 - **智能缩放适配**：页面缩放（Ctrl +/-）时保持物理尺寸，视窗拉伸时保持相对比例。
+- **高缩放稳定性**：快速在 150%-500% 缩放间切换时，避免小窗尺寸持续变小或底部锚点漂移。
 - **多档位宽度比例**：支持四种视窗档位（MAX/WIDE/MEDIUM/SMALL），每个档位独立记忆宽度比例，在不同窗口大小下都能获得最佳观看体验。
 - **层级自动穿透**：递归修改父级 `z-index`，确保 Bilibili 小窗不被侧边栏（客服、顶部等）遮挡。
 
@@ -41,6 +42,8 @@
 ## MCP 测试环境
 
 - 推荐的 Chrome DevTools MCP 连接方式：`--browser-url=http://localhost:9222`
+- Bilibili 回归测试使用已登录的 `D:\Chrome_MCP_Data` / `Profile 1`。
+- 验证页面缩放时，应比较物理尺寸（元素高度 × `devicePixelRatio`），不要只看 CSS 像素高度。
 - 这台机器上推荐使用以下命令启动测试浏览器：
 
 ```powershell

@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Floating Video Resizer",
   "description": "Adds four-corner resizing and drag support for Bilibili and YouTube's floating player.",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "icons": {
     "128": "assets/icon-128.png"
   },

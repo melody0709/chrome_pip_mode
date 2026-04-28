@@ -730,9 +730,14 @@ function createYouTubeController() {
   }
 
   function getViewportMetrics() {
+    const width = Math.max(1, globalThis.innerWidth || document.documentElement.clientWidth || 1)
+    const height = Math.max(1, globalThis.innerHeight || document.documentElement.clientHeight || 1)
+
     return {
-      width: Math.max(1, globalThis.innerWidth || document.documentElement.clientWidth || 1),
-      height: Math.max(1, globalThis.innerHeight || document.documentElement.clientHeight || 1)
+      width,
+      height,
+      outerWidth: globalThis.outerWidth || width,
+      outerHeight: globalThis.outerHeight || height
     }
   }
 
@@ -797,7 +802,24 @@ function createYouTubeController() {
     }
 
     function createResponsiveGeometrySnapshot(player, geometry, viewport = getViewportMetrics()) {
-      const nextGeometry = clampGeometry(player, geometry, viewport)
+      const ratio = getAspectRatio(player)
+      const left = Number(geometry.left)
+      const top = Number(geometry.top)
+      const width = Number(geometry.width)
+      const height = Number.isFinite(Number(geometry.height))
+        ? Number(geometry.height)
+        : Math.round(width / ratio)
+
+      if (!Number.isFinite(left) || !Number.isFinite(top) || !Number.isFinite(width) || width <= 0) {
+        return createResponsiveGeometrySnapshot(player, clampGeometry(player, geometry, viewport), viewport)
+      }
+
+      const nextGeometry = {
+        left: Math.round(left),
+        top: Math.round(top),
+        width: Math.round(width),
+        height: Math.round(height)
+      }
       const currentTier = getCurrentTier()
 
       // 继承或初始化各档位的 widthRatios
@@ -818,6 +840,8 @@ function createYouTubeController() {
         width: nextGeometry.width,
         viewportWidth: viewport.width,
         viewportHeight: viewport.height,
+        outerWidth: viewport.outerWidth,
+        outerHeight: viewport.outerHeight,
         right: Math.max(MARGIN, viewport.width - nextGeometry.left - nextGeometry.width),
         bottom: Math.max(MARGIN, viewport.height - nextGeometry.top - nextGeometry.height),
         widthRatios,
@@ -833,10 +857,24 @@ function createYouTubeController() {
         const width = Number(value.width)
         const sourceViewportWidth = Number(value.viewportWidth)
         const sourceViewportHeight = Number(value.viewportHeight)
+        const sourceOuterWidth = Number(value.outerWidth)
+        const sourceOuterHeight = Number(value.outerHeight)
 
         const oldZoom = Number.isFinite(Number(value.pageZoom)) ? Number(value.pageZoom) : getPageZoom()
         const currentZoom = getPageZoom()
         const zoomRatio = oldZoom / currentZoom
+        const dprZoomChanged = Math.abs(oldZoom - currentZoom) > 0.01
+        const sameOuterWindow =
+          Number.isFinite(sourceOuterWidth) &&
+          Number.isFinite(sourceOuterHeight) &&
+          Math.abs(sourceOuterWidth - viewport.outerWidth) <= 2 &&
+          Math.abs(sourceOuterHeight - viewport.outerHeight) <= 2
+        const innerViewportChanged =
+          Math.abs(sourceViewportWidth - viewport.width) > 1 ||
+          Math.abs(sourceViewportHeight - viewport.height) > 1
+        const viewportScale = sourceViewportWidth > 0 ? viewport.width / sourceViewportWidth : zoomRatio
+        const zoomChanged = dprZoomChanged || (sameOuterWindow && innerViewportChanged)
+        const positionScale = zoomChanged ? (dprZoomChanged ? zoomRatio : viewportScale) : 1
 
         let right = Number.isFinite(Number(value.right))
           ? Number(value.right)
@@ -845,9 +883,10 @@ function createYouTubeController() {
           ? Number(value.bottom)
           : sourceViewportHeight - top - Math.round(width / ratio)
 
-        // Scale gaps to maintain absolute physical distance during zoom
-        right *= zoomRatio
-        bottom *= zoomRatio
+        // Page zoom changes CSS pixel size; window resizing does not.
+        // Scale edge gaps only for zoom so bottom anchoring survives 150% <-> 500%.
+        right *= positionScale
+        bottom *= positionScale
 
         // 获取当前档位
         const currentTier = getCurrentTier()
@@ -856,8 +895,9 @@ function createYouTubeController() {
         const fallbackRatio = sourceViewportWidth > 0 ? width / sourceViewportWidth : 0.20
         const currentWidthRatio = getCurrentWidthRatio(value.widthRatios, currentTier, fallbackRatio)
 
-        // 使用当前档位的 widthRatio 计算宽度
-        const nextWidth = viewport.width * currentWidthRatio
+        // Page zoom changes CSS pixel units. Preserve physical size while zooming;
+        // use viewport ratios only for real window resizing/tier changes.
+        const nextWidth = zoomChanged ? width * positionScale : viewport.width * currentWidthRatio
 
         const clampedWidth = clamp(
           Math.round(nextWidth),
@@ -872,7 +912,7 @@ function createYouTubeController() {
         if (isCloserToRight) {
           nextLeft = viewport.width - right - clampedWidth
         } else {
-          nextLeft = left * zoomRatio
+          nextLeft = left * positionScale
         }
 
         // Check if the player was closer to the top or bottom in the original viewport
@@ -882,7 +922,7 @@ function createYouTubeController() {
         if (isCloserToBottom) {
           nextTop = viewport.height - bottom - clampedHeight
         } else {
-          nextTop = top * zoomRatio
+          nextTop = top * positionScale
         }
 
         const maxLeft = Math.max(MARGIN, viewport.width - MARGIN - clampedWidth)
@@ -1581,7 +1621,9 @@ function createYouTubeController() {
     currentGeometry = nextGeometry
     syncOverlay(nextGeometry)
 
-    if (isNewActivation) {
+    // Re-activation can happen transiently while Chrome is processing rapid zoom
+    // changes. Do not let those intermediate frames replace a user's saved anchor.
+    if (isNewActivation && !savedGeometry) {
       persistGeometryImmediate(nextGeometry)
     }
   }
@@ -1637,10 +1679,13 @@ function createYouTubeController() {
 
     const responsiveCurrentGeometry =
       currentPlayer === player && currentGeometry && viewportChanged
-        ? adaptGeometryToViewport(
-            player,
-            createResponsiveGeometrySnapshot(player, currentGeometry, lastViewport),
-            viewport
+        ? (
+            sanitizeSavedGeometry(player, savedGeometry, viewport) ||
+            adaptGeometryToViewport(
+              player,
+              createResponsiveGeometrySnapshot(player, currentGeometry, lastViewport),
+              viewport
+            )
           )
         : currentGeometry
 
@@ -1650,10 +1695,6 @@ function createYouTubeController() {
       site.getDefaultGeometry(player)
 
     applyGeometry(player, geometry)
-
-    if (savedGeometry && viewportChanged) {
-      savedGeometry = createResponsiveGeometrySnapshot(player, currentGeometry, viewport)
-    }
 
     lastViewport = viewport
     attachPlayerInteractions(player)
