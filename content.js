@@ -14,6 +14,11 @@
   const HANDLE_CLASS = "copilot-floating-player-handle"
   const STORAGE_PREFIX = "floatingVideoState:"
   const STORAGE_SCHEMA_VERSION = 6
+  // 常用调试项：按站点调整悬浮窗层级
+  const PLAYER_Z_INDEX_BY_SITE = {
+    bilibili: 500,
+    youtube: 999
+  }
 
   // 视窗档位配置（基于窗口宽度与屏幕可用宽度的比例）
   const VIEWPORT_TIERS = {
@@ -137,11 +142,13 @@
     return Math.floor(ABSOLUTE_MIN_WIDTH / getPageZoom())
   }
   const MAX_VIEWPORT_RATIO = 0.50
-  // 悬浮窗 z-index（调低至 9999，避免遮挡 Bilibili 评论区图片放大镜/登录弹窗等高层级 Modal）
-  const PLAYER_Z_INDEX = 9999
   const ANCESTOR_OVERFLOW_CLASS = "copilot-floating-ancestor-overflow"
   const ANCESTOR_STACKING_CLASS = "copilot-floating-ancestor-stacking"
   const ancestorSavedStyles = new WeakMap()
+
+  function getPlayerZIndex() {
+    return PLAYER_Z_INDEX_BY_SITE[site.id] || PLAYER_Z_INDEX_BY_SITE.youtube
+  }
 
   function setAncestorsOverflowVisible(player) {
     let el = player.parentElement
@@ -158,7 +165,7 @@
       if (computed.position === "static") {
         el.classList.add(ANCESTOR_STACKING_CLASS)
       }
-      el.style.zIndex = String(PLAYER_Z_INDEX)
+      el.style.zIndex = String(getPlayerZIndex())
 
       el = el.parentElement
     }
@@ -290,7 +297,7 @@ function createYouTubeController() {
         player.style.height = `${geometry.height}px`
         player.style.maxWidth = "100vw"
         player.style.maxHeight = "100vh"
-        player.style.zIndex = String(PLAYER_Z_INDEX)
+        player.style.zIndex = String(getPlayerZIndex())
         player.style.transform = `translate(${geometry.left}px, ${geometry.top}px)`
       },
       cleanup(player) {
@@ -393,7 +400,7 @@ function createYouTubeController() {
         player.style.height = `${geometry.height}px`
         player.style.maxWidth = `${geometry.width}px`
         player.style.maxHeight = `${geometry.height}px`
-        player.style.zIndex = String(PLAYER_Z_INDEX)
+        player.style.zIndex = String(getPlayerZIndex())
       },
       cleanup(player) {
         player.classList.remove(ACTIVE_CLASS, BILIBILI_CLASS)
@@ -1365,7 +1372,7 @@ function createYouTubeController() {
         display: none;
         pointer-events: none;
         overflow: visible;
-        z-index: ${PLAYER_Z_INDEX + 1};
+        z-index: ${getPlayerZIndex() + 1};
       }
 
       #${OVERLAY_ID}.${OVERLAY_ACTIVE_CLASS} {
@@ -1537,7 +1544,7 @@ function createYouTubeController() {
       }
 
       .bpx-player-container.${BILIBILI_CLASS} {
-        z-index: ${PLAYER_Z_INDEX + 1} !important;
+        z-index: ${getPlayerZIndex() + 1} !important;
       }
 
         .${BILIBILI_CLASS} .bpx-player-primary-area,
@@ -1556,7 +1563,7 @@ function createYouTubeController() {
 
 #movie_player.${YOUTUBE_CLASS} {
         position: fixed !important;
-        z-index: ${PLAYER_Z_INDEX + 1} !important;
+        z-index: ${getPlayerZIndex() + 1} !important;
         top: 0 !important;
         left: 0 !important;
         background: #000 !important;

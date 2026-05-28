@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:github.com)",
+      "Bash(claude mcp *)",
+      "Bash(start *)",
+      "Bash(tasklist)",
+      "Bash(curl -s http://127.0.0.1:9222/json/version)",
+      "Bash(taskkill /F /IM chrome.exe)"
+    ]
+  }
+}
