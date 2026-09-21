@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Floating Video Resizer — 设置</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: Arial, "Microsoft YaHei", sans-serif;
+      }
+
+      body {
+        margin: 0;
+        padding: 32px 20px;
+        background: #f5f7fb;
+        color: #1f2328;
+      }
+
+      .panel {
+        max-width: 720px;
+        margin: 0 auto;
+      }
+
+      .card {
+        padding: 24px;
+        border-radius: 16px;
+        background: #ffffff;
+        box-shadow: 0 12px 30px rgba(31, 35, 40, 0.08);
+      }
+
+      .eyebrow {
+        margin: 0 0 4px;
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        color: #57606a;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 0 0 12px;
+        font-size: 28px;
+      }
+
+      p {
+        line-height: 1.6;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 700;
+      }
+
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+
+      input {
+        flex: 1 1 160px;
+        min-width: 160px;
+        padding: 12px 14px;
+        border: 1px solid #d0d7de;
+        border-radius: 12px;
+        font-size: 18px;
+        background: #f6f8fa;
+      }
+
+      button {
+        padding: 12px 16px;
+        border: 0;
+        border-radius: 12px;
+        font-size: 16px;
+        cursor: pointer;
+        color: #ffffff;
+        background: #1677ff;
+      }
+
+      button.secondary {
+        background: #57606a;
+      }
+
+      button.recording {
+        background: #d1242f;
+      }
+
+      .hint {
+        margin: 8px 0 0;
+        color: #57606a;
+      }
+
+      .status {
+        min-height: 24px;
+        margin: 12px 0 0;
+        font-weight: 700;
+      }
+
+      .status[data-tone="success"] {
+        color: #1a7f37;
+      }
+
+      .status[data-tone="error"] {
+        color: #cf222e;
+      }
+
+      .status[data-tone="info"] {
+        color: #0969da;
+      }
+
+      .notes {
+        margin: 20px 0 0;
+        padding-left: 20px;
+      }
+
+      .notes li {
+        margin-bottom: 8px;
+      }
+
+      @media (max-width: 640px) {
+        body {
+          padding: 20px 16px;
+        }
+
+        .card {
+          padding: 20px;
+        }
+
+        h1 {
+          font-size: 24px;
+        }
+
+        button,
+        input {
+          width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="panel">
+      <p class="eyebrow">Floating Video Resizer</p>
+      <h1>Bilibili 网页全屏快捷键</h1>
+      <p>在 Bilibili 视频页面按下自定义按键，触发播放器官方的“网页全屏”按钮。</p>
+
+      <section class="card">
+        <label for="shortcutInput">当前快捷键</label>
+        <div class="row">
+          <input id="shortcutInput" type="text" readonly>
+          <button id="recordButton" type="button">录制新按键</button>
+          <button id="resetButton" class="secondary" type="button">恢复默认</button>
+        </div>
+        <p id="hint" class="hint">点击“录制新按键”后，按下一个按键即可保存。</p>
+        <p id="status" class="status" aria-live="polite"></p>
+
+        <ul class="notes">
+          <li>默认快捷键是 T，输入大写或小写都会生效。</li>
+          <li>当前版本支持单个按键，例如 T、W、Space、F2。</li>
+          <li>当焦点在搜索框、评论框等可编辑区域时，插件不会拦截按键。</li>
+          <li>本页只负责快捷键。悬浮小窗的尺寸与位置请在页面内<strong>双击小窗的任一手柄或上方拖动区</strong>来复位。</li>
+        </ul>
+      </section>
+    </main>
+
+    <script src="options.js"></script>
+  </body>
+</html>
